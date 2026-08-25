@@ -8,7 +8,6 @@
   <a href="https://github.com/cnwxi/epub_tool/releases/latest"><img src="https://img.shields.io/github/v/release/cnwxi/epub_tool" alt="GitHub Releases"></a>
   <a href="https://github.com/cnwxi/epub_tool/stargazers"><img src="https://img.shields.io/github/stars/cnwxi/epub_tool" alt="GitHub stars"></a>
   <a href="https://github.com/cnwxi/epub_tool/network/members"><img src="https://img.shields.io/github/forks/cnwxi/epub_tool" alt="GitHub forks"></a>
-  <a href="https://github.com/cnwxi/homebrew-tap"><img src="https://img.shields.io/badge/homebrew-cnwxi%2Ftap-FBB040" alt="Homebrew Tap"></a>
 </p>
 
 一个面向 EPUB 批量处理的桌面工具，采用 `Tauri 2 + Vue 3 + TypeScript + Rust`。Windows、macOS、Linux 均在应用进程内执行 Rust 任务核心。开发、测试、构建和发布使用 Rust/Node 工具链。文件解密/加密功能处理的是 EPUB 内文件名与资源引用混淆，不提供 DRM 内容解密。
@@ -43,19 +42,6 @@
 | Linux | x64、arm64 | 进程内 | deb、rpm |
 
 ## 安装
-
-### macOS（Homebrew）
-
-```bash
-brew tap cnwxi/tap
-brew install --cask epub-tool-newui
-```
-
-更新：
-
-```bash
-brew upgrade --cask epub-tool-newui
-```
 
 ### 手动下载
 

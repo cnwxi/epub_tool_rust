@@ -60,5 +60,3 @@ npm run build:verify-ocr-model
 版本唯一来源是 `src-tauri/Cargo.toml` 的 `package.version`，Vite、Tauri 与 Release workflow 均读取该值。版本采用“年.月.日”形式，同日修订可加 `-1`、`-2` 后缀。
 
 GitHub Release 发布 Windows、macOS 和 Linux 桌面安装包。发布前在 `assets/docs/CHANGELOG.md` 添加对应版本记录。
-
-Homebrew Cask 更新由 `xtask update-homebrew-cask` 完成，主发布和手动 fallback workflow 共用同一 Rust 实现。

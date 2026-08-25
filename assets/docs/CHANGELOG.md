@@ -23,7 +23,7 @@
 收敛平台安装包类型：Linux 仅生成 `deb/rpm`，Windows 仅生成 NSIS `Setup.exe`，避免 Windows 构建下载 WiX/MSI 工具链时受网络中断影响。<br>
 
 ### 26.7.25
-完善 GitHub Actions 发布工作流：支持正式发布与预发布渠道选择，预发布不会更新 Homebrew Tap。<br>
+完善 GitHub Actions 发布工作流：支持正式发布与预发布渠道选择。<br>
 发布正文留空时自动提取对应版本的更新日志，并附加默认安装说明；找不到版本记录时主动终止发布。<br>
 统一更新日志版本标题格式，并补充版本号、更新日志与发布正文提取规则的维护文档。<br>
 修复自定义输出目录不存在或失效时的处理逻辑：任务运行器会创建缺失目录，桌面端会在检测到无效路径时将详情写入处理日志并恢复为源文件同级目录。<br>
@@ -63,7 +63,7 @@
 
 ### 26.7.11
 完善本地开发与编译文档：新增跨 macOS、Windows、Linux 的环境配置、依赖准备、Python sidecar 二进制编译、桌面打包及 `cargo metadata` 报错排查说明。<br>
-更新开发环境 Node.js 版本至 `24.18.0`，并补充 macOS 的原生与 Homebrew 安装方式。<br>
+更新开发环境 Node.js 版本至 `24.18.0`。<br>
 README 新增桌面端界面预览，清理未使用的图片资源。<br>
 重构项目结构。<br>
 
@@ -79,7 +79,6 @@ README 新增桌面端界面预览，清理未使用的图片资源。<br>
 为本工具处理后生成的 EPUB 增加 OPF 元数据标记：输出文件的 `content.opf` 会写入 `<meta name="generator" content="Epub Tool" />`，便于识别由本工具生成或处理过的 EPUB。<br>
 暂时注释 GitHub Actions 中的 medium OCR 发布矩阵，仅发布 small OCR 安装包，降低发布资产数量与体积；medium 模型仍保留本地维护和验证入口。<br>
 扩展 GitHub Actions small 版构建矩阵：Linux、Windows、macOS 均覆盖 x64 与 arm64 两种架构。<br>
-更新 Homebrew Tap 自动更新逻辑：Cask 同时写入 Intel 与 Apple Silicon 的 small 版 DMG URL 和 sha256，安装时按 Mac 架构自动匹配。<br>
 
 ### 26.6.17
 优化字体解密 OCR 失败占位字形显示：提高内联失败图片样式优先级，补充 `line-height:1`、`max-height:none!important` 与 `display:inline-block!important`，并调整图片高度和 baseline 对齐，减少失败字形在正文中偏小的问题。<br>
@@ -97,7 +96,7 @@ README 新增桌面端界面预览，清理未使用的图片资源。<br>
 ### 26.6.15
 修复字体混淆排版异常：混淆码位还原为旧版本使用的韩文音节区，并改为在原字体上就地更新 Unicode cmap，保留原字体度量、布局表与标点映射，避免阅读器两端对齐时出现异常大间距。<br>
 优化字体混淆字母数字处理：半角拉丁字母数字仅在半角 ASCII 字母数字池内混淆，全角拉丁字母数字仅在全角字母数字池内混淆，标点符号继续保留原码位，避免半角字符被替换为宽字符造成排版异常。<br>
-调整 GitHub Actions 发布构建：每个平台同时产出 small 与 medium 两类 OCR 安装包，本地默认构建与 Homebrew 仍使用 small 版。<br>
+调整 GitHub Actions 发布构建：每个平台同时产出 small 与 medium 两类 OCR 安装包，本地默认构建使用 small 版。<br>
 优化字体解密 OCR 高级选项交互：将 OCR 置信度阈值改为滑动条，步进为 `0.05`，保留原有默认值与任务请求传参逻辑。<br>
 调整 OCR 字符范围下拉菜单样式：降低透明感、增加展开层级阴影，并在菜单打开时提升字体设置卡片层级，避免视觉上被下方“过程 / 处理日志”区域压住。<br>
 统一 OCR 置信度相关界面文案为“OCR置信度阈值”，并优化阈值数值显示样式与滑动条区域对齐。<br>
@@ -119,11 +118,8 @@ README 新增桌面端界面预览，清理未使用的图片资源。<br>
 修复字体混淆子集裁剪逻辑：未参与混淆的半角字符与标点仍写回字体 `cmap`、字形和 metrics，避免生成字体缺字或触发阅读器字体回退。<br>
 
 ### 26.5.7
-新增 macOS Homebrew 分发支持：添加个人 Tap `cnwxi/tap`，通过 `brew install --cask epub-tool-newui` 安装可跳过 Gatekeeper 验证。<br>
-新增 Homebrew Tap 自动更新工作流：每次发布 Release 后自动更新 Cask 公式的版本号和 sha256，支持手动触发和自动触发。<br>
 修复 macOS 上 ad-hoc 签名应用因 Hardened Runtime 强制要求公证导致的启动拦截：关闭 `hardenedRuntime`。<br>
 优化设置页路径工具区域布局：桌面端双列对齐，窄屏自动退化为单列。<br>
-README 新增 Homebrew 安装说明。<br>
 
 ### 26.4.18
 重构桌面版任务页布局：`任务配置 / 文件队列 / 字体范围 / 处理日志 / 最近一次执行摘要` 统一接入真正的 Masonry 分列，桌面宽度下按最短列补位，窄屏自动退化为单列。<br>

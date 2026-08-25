@@ -28,7 +28,6 @@ pub async fn get_log_path(app: AppHandle) -> Result<String, String> {
 }
 
 #[tauri::command]
-#[tauri::command]
 pub async fn read_image_preview(path: String) -> Result<ImagePreviewResponse, String> {
     let image_path = PathBuf::from(path);
     let metadata =

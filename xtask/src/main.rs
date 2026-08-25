@@ -30,13 +30,12 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
     match command {
         "verify-ocr-model" => verify_ocr_model(arguments.get(1).map(String::as_str)),
         "desktop-build" => desktop_build(&arguments[1..]),
-        "update-homebrew-cask" => update_homebrew_cask(&arguments[1..]),
         _ => Err(usage()),
     }
 }
 
 fn usage() -> String {
-    "Usage:\n  cargo run --locked --manifest-path xtask/Cargo.toml -- verify-ocr-model [model-name]\n  cargo run --locked --manifest-path xtask/Cargo.toml -- desktop-build [Tauri build options]\n  cargo run --locked --manifest-path xtask/Cargo.toml -- update-homebrew-cask <formula> <version> <arm64-sha256> <x64-sha256> <url>".to_string()
+    "Usage:\n  cargo run --locked --manifest-path xtask/Cargo.toml -- verify-ocr-model [model-name]\n  cargo run --locked --manifest-path xtask/Cargo.toml -- desktop-build [Tauri build options]".to_string()
 }
 
 fn repo_root() -> Result<PathBuf, String> {
@@ -110,79 +109,6 @@ fn npm_command() -> Command {
     } else {
         Command::new("npm")
     }
-}
-
-fn update_homebrew_cask(arguments: &[String]) -> Result<(), String> {
-    let [formula, version, arm_sha256, intel_sha256, url] = arguments else {
-        return Err(usage());
-    };
-    validate_sha256(arm_sha256)?;
-    validate_sha256(intel_sha256)?;
-    let path = Path::new(formula);
-    let source = fs::read_to_string(path)
-        .map_err(|error| format!("读取 Homebrew Cask 失败 {}: {error}", path.display()))?;
-    let updated = updated_homebrew_cask(&source, version, arm_sha256, intel_sha256, url)?;
-    fs::write(path, updated)
-        .map_err(|error| format!("写入 Homebrew Cask 失败 {}: {error}", path.display()))
-}
-
-fn validate_sha256(value: &str) -> Result<(), String> {
-    if value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        Ok(())
-    } else {
-        Err(format!("无效 SHA-256: {value}"))
-    }
-}
-
-fn updated_homebrew_cask(
-    source: &str,
-    version: &str,
-    arm_sha256: &str,
-    intel_sha256: &str,
-    url: &str,
-) -> Result<String, String> {
-    let trailing_newline = source.ends_with('\n');
-    let mut lines: Vec<String> = source.lines().map(str::to_string).collect();
-    let version_index = find_cask_line(&lines, "version ")?;
-    lines[version_index] = format!("  version \"{version}\"");
-
-    let arch_line = "  arch arm: \"arm64\", intel: \"x64\"".to_string();
-    if let Some(index) = lines
-        .iter()
-        .position(|line| line.trim_start().starts_with("arch "))
-    {
-        lines[index] = arch_line;
-    } else {
-        lines.insert(version_index + 1, arch_line);
-    }
-
-    let sha_index = find_cask_line(&lines, "sha256 ")?;
-    let url_index = find_cask_line(&lines, "url ")?;
-    if url_index <= sha_index {
-        return Err("Homebrew Cask 的 sha256 必须位于 url 之前".to_string());
-    }
-    lines.splice(
-        sha_index..url_index,
-        [
-            format!("  sha256 arm: \"{arm_sha256}\","),
-            format!("         intel: \"{intel_sha256}\""),
-        ],
-    );
-    let url_index = find_cask_line(&lines, "url ")?;
-    lines[url_index] = format!("  url \"{url}\"");
-
-    let mut output = lines.join("\n");
-    if trailing_newline {
-        output.push('\n');
-    }
-    Ok(output)
-}
-
-fn find_cask_line(lines: &[String], prefix: &str) -> Result<usize, String> {
-    lines
-        .iter()
-        .position(|line| line.trim_start().starts_with(prefix))
-        .ok_or_else(|| format!("Homebrew Cask 缺少 {prefix}字段"))
 }
 
 fn prepare_macos_ort_framework() -> Result<PathBuf, String> {
@@ -408,35 +334,4 @@ fn copy_if_changed(source: &Path, destination: &Path) -> Result<(), String> {
     fs::copy(source, destination)
         .map_err(|error| format!("复制原生库失败 {}: {error}", destination.display()))?;
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::updated_homebrew_cask;
-
-    #[test]
-    fn updates_homebrew_cask_without_external_script_runtime() {
-        let source = r#"cask \"epub-tool-newui\" do
-  version \"1.0.0\"
-  sha256 arm: \"old-arm\",
-         intel: \"old-intel\"
-  url \"https://old.invalid\"
-end
-"#;
-        let arm = "a".repeat(64);
-        let intel = "b".repeat(64);
-        let updated = updated_homebrew_cask(
-            source,
-            "2.0.0",
-            &arm,
-            &intel,
-            "https://example.invalid/#{version}/#{arch}.dmg",
-        )
-        .unwrap();
-        assert!(updated.contains("  version \"2.0.0\""));
-        assert!(updated.contains("  arch arm: \"arm64\", intel: \"x64\""));
-        assert!(updated.contains(&format!("  sha256 arm: \"{arm}\",")));
-        assert!(updated.contains(&format!("         intel: \"{intel}\"")));
-        assert!(updated.contains("  url \"https://example.invalid/#{version}/#{arch}.dmg\""));
-    }
 }
