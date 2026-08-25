@@ -1,0 +1,63 @@
+# Node 与前端包管理缓存
+.npm/
+.pnpm-store/
+.yarn/
+.parcel-cache/
+.eslintcache
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# 打包与构建产物
+build/
+dist/
+frontend/dist/
+frontend/node_modules/
+node_modules/
+src-tauri/target/
+src-tauri/gen/
+src-tauri/.mobile-runtime/
+src-tauri/.icon-build/
+xtask/target/
+src-tauri/binaries/*
+!src-tauri/binaries/.gitkeep
+src-tauri/bundle-resources/
+!src-tauri/bundle-resources/
+src-tauri/bundle-resources/*
+!src-tauri/bundle-resources/opencc/
+!src-tauri/bundle-resources/opencc/*
+!src-tauri/bundle-resources/binaries/
+src-tauri/bundle-resources/binaries/*
+!src-tauri/bundle-resources/binaries/.gitkeep
+!src-tauri/bundle-resources/ocr-models/
+src-tauri/bundle-resources/ocr-models/*
+!src-tauri/bundle-resources/ocr-models/PP-OCRv6_small_rec_onnx/
+!src-tauri/bundle-resources/ocr-models/PP-OCRv6_small_rec_onnx/*
+!src-tauri/bundle-resources/ocr-models/PP-OCRv6_medium_rec_onnx/
+!src-tauri/bundle-resources/ocr-models/PP-OCRv6_medium_rec_onnx/*
+*.tsbuildinfo
+
+# 日志与本地结果
+log.txt
+*.log
+log_file/
+result.txt
+app-state.json
+
+# 本地样本与临时文件
+*.epub
+.DS_Store
+.AppleDouble
+.LSOverride
+fixtures/
+
+# 编辑器配置
+.vscode/
+.idea/
+
+# 工具配置
+.codex/app-state.json
+
+# gpt something
+.codex
+.claude
