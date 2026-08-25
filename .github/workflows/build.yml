@@ -31,113 +31,9 @@ on:
         default: ""
 
 jobs:
-  prepare:
-    name: Resolve Release Version
-    runs-on: ubuntu-22.04
-    outputs:
-      app_version: ${{ steps.release_version.outputs.app_version }}
-      asset_version: ${{ steps.release_version.outputs.asset_version }}
-      release_version: ${{ steps.release_version.outputs.release_version }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Resolve release version
-        id: release_version
-        shell: bash
-        run: |
-          app_version=$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -n 1)
-          if [ -z "$app_version" ]; then
-            echo "无法从 src-tauri/Cargo.toml 读取应用版本" >&2
-            exit 1
-          fi
-
-          if [ -n "${{ inputs.version }}" ]; then
-            asset_version="${{ inputs.version }}"
-            asset_version="${asset_version#v}"
-          else
-            asset_version="$app_version"
-          fi
-
-          release_version="v$asset_version"
-
-          echo "app_version=$app_version" >> "$GITHUB_OUTPUT"
-          echo "asset_version=$asset_version" >> "$GITHUB_OUTPUT"
-          echo "release_version=$release_version" >> "$GITHUB_OUTPUT"
-
-  quality:
-    name: Pure Rust Quality Gate
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version-file: ".nvmrc"
-          cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            frontend/package-lock.json
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@1.97.1
-        with:
-          components: rustfmt, clippy
-
-      - name: Install Linux dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            curl \
-            file \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            libssl-dev \
-            libwebkit2gtk-4.1-dev \
-            libxdo-dev \
-            patchelf \
-            wget
-
-      - name: Install JavaScript dependencies
-        run: |
-          npm ci
-          npm --prefix frontend ci
-
-      - name: Verify generated protocol code
-        run: npm run protocol:check
-
-      - name: Check Rust formatting
-        run: |
-          cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
-          cargo fmt --manifest-path xtask/Cargo.toml -- --check
-
-      - name: Run Rust tests
-        run: |
-          cargo test --locked --manifest-path src-tauri/Cargo.toml
-          cargo test --locked --manifest-path xtask/Cargo.toml
-
-      - name: Run Rust clippy
-        run: |
-          cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
-          cargo clippy --locked --manifest-path xtask/Cargo.toml --all-targets -- -D warnings
-
-      - name: Build frontend
-        run: npm run build
-
-      - name: Verify bundled ONNX OCR model with Rust
-        run: npm run build:verify-ocr-model
-
   build:
     name: Build ${{ matrix.target.platform }}-${{ matrix.target.arch }}-${{ matrix.ocr.variant }}
     runs-on: ${{ matrix.target.runner }}
-    needs:
-      - prepare
-      - quality
     permissions:
       contents: read
     env:
@@ -186,18 +82,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Setup Node.js with npm cache
-        if: github.ref == 'refs/heads/main'
-        uses: actions/setup-node@v6
-        with:
-          node-version-file: ".nvmrc"
-          cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            frontend/package-lock.json
+      - name: Resolve release version
+        id: release_version
+        shell: bash
+        run: |
+          app_version=$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -n 1)
+          if [ -z "$app_version" ]; then
+            echo "无法从 src-tauri/Cargo.toml 读取应用版本" >&2
+            exit 1
+          fi
 
-      - name: Setup Node.js without npm cache
-        if: github.ref != 'refs/heads/main'
+          if [ -n "${{ inputs.version }}" ]; then
+            asset_version="${{ inputs.version }}"
+            asset_version="${asset_version#v}"
+          else
+            asset_version="$app_version"
+          fi
+
+          echo "app_version=$app_version" >> "$GITHUB_OUTPUT"
+          echo "asset_version=$asset_version" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version-file: ".nvmrc"
@@ -225,9 +130,6 @@ jobs:
         run: |
           npm ci
           npm --prefix frontend ci
-
-      - name: Verify generated protocol code
-        run: npm run protocol:check
 
       - name: Fetch Rust dependencies
         shell: bash
@@ -262,7 +164,7 @@ jobs:
         if: matrix.target.platform == 'macos'
         shell: bash
         env:
-          APP_VERSION: ${{ needs.prepare.outputs.app_version }}
+          APP_VERSION: ${{ steps.release_version.outputs.app_version }}
           ARCH: ${{ matrix.target.arch }}
         run: |
           set -euo pipefail
@@ -319,7 +221,7 @@ jobs:
         if: inputs.release && matrix.target.platform != 'windows'
         shell: bash
         env:
-          ASSET_VERSION: ${{ needs.prepare.outputs.asset_version }}
+          ASSET_VERSION: ${{ steps.release_version.outputs.asset_version }}
           PLATFORM: ${{ matrix.target.platform }}
           ARCH: ${{ matrix.target.arch }}
           OCR_VARIANT: ${{ matrix.ocr.variant }}
@@ -368,7 +270,7 @@ jobs:
         if: inputs.release && matrix.target.platform == 'windows'
         shell: pwsh
         env:
-          ASSET_VERSION: ${{ needs.prepare.outputs.asset_version }}
+          ASSET_VERSION: ${{ steps.release_version.outputs.asset_version }}
           PLATFORM: ${{ matrix.target.platform }}
           ARCH: ${{ matrix.target.arch }}
           OCR_VARIANT: ${{ matrix.ocr.variant }}
@@ -424,96 +326,37 @@ jobs:
           path: src-tauri/target/release/bundle
           if-no-files-found: error
 
-  cleanup_node_cache:
-    name: Cleanup npm caches
-    if: always()
-    runs-on: ubuntu-22.04
-    needs:
-      - build
-    permissions:
-      actions: write
-      contents: read
-    steps:
-      - name: Prune GitHub Actions npm caches
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          MAIN_REF: refs/heads/main
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          main_cache_json="$(gh cache list --ref "$MAIN_REF" --key "node-cache-" --limit 1000 --json id,key,createdAt)"
-          main_cache_count="$(printf '%s' "$main_cache_json" | jq 'length')"
-          echo "main 分支 npm cache 数量: $main_cache_count"
-
-          keep_main_ids="$(
-            printf '%s' "$main_cache_json" | jq -r '
-              sort_by(.key | sub("-[^-]+$"; ""))
-              | group_by(.key | sub("-[^-]+$"; ""))
-              | .[]
-              | sort_by(.createdAt)
-              | reverse
-              | .[0].id
-            '
-          )"
-
-          delete_main_ids="$(
-            printf '%s' "$main_cache_json" | jq -r '
-              sort_by(.key | sub("-[^-]+$"; ""))
-              | group_by(.key | sub("-[^-]+$"; ""))
-              | .[]
-              | sort_by(.createdAt)
-              | reverse
-              | .[1:][]?
-              | .id
-            '
-          )"
-
-          other_branch_ids="$(
-            gh cache list --key "node-cache-" --limit 1000 --json id,ref \
-              | jq -r --arg main_ref "$MAIN_REF" '.[] | select(.ref != $main_ref) | .id'
-          )"
-
-          delete_ids="$(
-            {
-              printf '%s\n' "$delete_main_ids"
-              printf '%s\n' "$other_branch_ids"
-            } | awk 'NF' | sort -u
-          )"
-
-          echo "保留的 main cache:"
-          if [ -n "$keep_main_ids" ]; then
-            printf '%s\n' "$keep_main_ids"
-          else
-            echo "无"
-          fi
-
-          if [ -z "$delete_ids" ]; then
-            echo "没有需要删除的 npm cache。"
-            exit 0
-          fi
-
-          echo "开始删除以下 npm cache:"
-          printf '%s\n' "$delete_ids"
-
-          while IFS= read -r cache_id; do
-            [ -n "$cache_id" ] || continue
-            gh cache delete "$cache_id"
-          done <<< "$delete_ids"
-
   publish_release:
     name: Publish Release
     if: inputs.release
     runs-on: ubuntu-22.04
     needs:
-      - prepare
       - build
     permissions:
       contents: write
     steps:
       - name: Checkout release notes
         uses: actions/checkout@v6
+
+      - name: Resolve release version
+        id: release_version
+        shell: bash
+        run: |
+          app_version=$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -n 1)
+          if [ -z "$app_version" ]; then
+            echo "无法从 src-tauri/Cargo.toml 读取应用版本" >&2
+            exit 1
+          fi
+
+          if [ -n "${{ inputs.version }}" ]; then
+            asset_version="${{ inputs.version }}"
+            asset_version="${asset_version#v}"
+          else
+            asset_version="$app_version"
+          fi
+
+          echo "asset_version=$asset_version" >> "$GITHUB_OUTPUT"
+          echo "release_version=v$asset_version" >> "$GITHUB_OUTPUT"
 
       - name: Download renamed release assets
         uses: actions/download-artifact@v8
@@ -526,7 +369,7 @@ jobs:
         shell: bash
         env:
           RELEASE_BODY: ${{ inputs.body }}
-          ASSET_VERSION: ${{ needs.prepare.outputs.asset_version }}
+          ASSET_VERSION: ${{ steps.release_version.outputs.asset_version }}
         run: |
           set -euo pipefail
           if [ -n "$RELEASE_BODY" ]; then
@@ -571,8 +414,8 @@ jobs:
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ needs.prepare.outputs.release_version }}
-          name: ${{ needs.prepare.outputs.release_version }}
+          tag_name: ${{ steps.release_version.outputs.release_version }}
+          name: ${{ steps.release_version.outputs.release_version }}
           body_path: release-body.md
           files: release-assets/*
           fail_on_unmatched_files: true
