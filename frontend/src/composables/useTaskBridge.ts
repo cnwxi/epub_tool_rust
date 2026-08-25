@@ -35,10 +35,6 @@ export function useTaskBridge() {
     return platformCapabilities.value;
   };
 
-  const isMobileRuntime = (): boolean =>
-    platformCapabilities.value.platform === "android" ||
-    platformCapabilities.value.platform === "ios";
-
   const runTask = async (
     request: TaskRequest,
     onEvent: (event: EngineEvent) => void,
@@ -100,13 +96,6 @@ export function useTaskBridge() {
     return invoke<string>("get_persisted_store_path");
   };
 
-  const takeOpenedSources = async (): Promise<string[]> => {
-    if (!isTauriRuntime()) {
-      return [];
-    }
-    return invoke<string[]>("take_opened_sources");
-  };
-
   const getEngineStatus = async (): Promise<EngineStatus | null> => {
     if (!isTauriRuntime()) {
       return null;
@@ -132,29 +121,6 @@ export function useTaskBridge() {
     return invoke<string[]>("resolve_input_sources", {
       inputPaths,
     });
-  };
-
-  const stageSourceForTask = async (
-    sourcePath: string,
-    extension: string,
-  ): Promise<string> => {
-    if (!isTauriRuntime()) {
-      return sourcePath;
-    }
-    return invoke<string>("stage_source_for_task", {
-      sourcePath,
-      extension,
-    });
-  };
-
-  const exportOutput = async (
-    sourcePath: string,
-    destinationPath: string,
-  ): Promise<void> => {
-    if (!isTauriRuntime()) {
-      return;
-    }
-    await invoke("export_output", { sourcePath, destinationPath });
   };
 
   const validateOutputDirectory = async (directoryPath: string): Promise<void> => {
@@ -188,10 +154,8 @@ export function useTaskBridge() {
   return {
     collectEpubFiles,
     getLogPath,
-    takeOpenedSources,
     getPersistedStorePath,
     getEngineStatus,
-    isMobileRuntime,
     isTauriRuntime,
     listFontTargetsBatch,
     loadPersistedState,
@@ -201,8 +165,6 @@ export function useTaskBridge() {
     resolveInputSources,
     runTask,
     savePersistedState,
-    stageSourceForTask,
-    exportOutput,
     platformCapabilities,
     validateOutputDirectory,
   };

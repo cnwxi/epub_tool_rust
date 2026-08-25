@@ -11,7 +11,7 @@
   <a href="https://github.com/cnwxi/homebrew-tap"><img src="https://img.shields.io/badge/homebrew-cnwxi%2Ftap-FBB040" alt="Homebrew Tap"></a>
 </p>
 
-一个面向 EPUB 批量处理的跨平台工具，采用 `Tauri 2 + Vue 3 + TypeScript + Rust`。Linux、macOS、Windows、Android、iOS 均在应用进程内执行相同的 Rust 任务核心。开发、测试、构建和发布使用 Rust/Node 工具链。文件解密/加密功能处理的是 EPUB 内文件名与资源引用混淆，不提供 DRM 内容解密。
+一个面向 EPUB 批量处理的桌面工具，采用 `Tauri 2 + Vue 3 + TypeScript + Rust`。Windows、macOS、Linux 均在应用进程内执行 Rust 任务核心。开发、测试、构建和发布使用 Rust/Node 工具链。文件解密/加密功能处理的是 EPUB 内文件名与资源引用混淆，不提供 DRM 内容解密。
 
 ![Epub Tool 桌面端界面预览](./assets/img/epub_tool_newui.png)
 
@@ -30,9 +30,9 @@
 
 ## 当前实现
 
-各平台复用统一任务界面、类型化任务协议、进程内运行时和 Rust 业务核心。平台差异只集中在权限与文件适配层：桌面端负责目录扫描和路径打开；移动端负责系统文件 URI、缓存暂存和结果导出。
+各桌面平台复用统一任务界面、类型化任务协议、进程内运行时和 Rust 业务核心。平台差异只集中在权限与文件适配层，桌面端直接负责目录扫描、路径打开和输出文件访问。
 
-字体扫描、加密和解密共用 `EPUB/XHTML/CSS → Stylo computed style → FontRequest → FontFaceResolver → 字符级字体分配` 流水线。Stylo 是唯一生产 CSS 选择器、级联与计算样式路径；字体容器支持 TTF、OTF、WOFF、WOFF2。桌面与移动均携带 ONNX OCR 模型并启用字体解密，低置信度结果会保留 Top-K 候选、置信度和字形图片供复核，不会猜测替换。
+字体扫描、加密和解密共用 `EPUB/XHTML/CSS → Stylo computed style → FontRequest → FontFaceResolver → 字符级字体分配` 流水线。Stylo 是唯一生产 CSS 选择器、级联与计算样式路径；字体容器支持 TTF、OTF、WOFF、WOFF2。桌面端携带 ONNX OCR 模型并启用字体解密，低置信度结果会保留 Top-K 候选、置信度和字形图片供复核，不会猜测替换。
 
 平台覆盖：
 
@@ -41,10 +41,6 @@
 | Windows | x64、arm64 | 进程内 | NSIS |
 | macOS | x64、arm64 | 进程内 | app、DMG |
 | Linux | x64、arm64 | 进程内 | deb、rpm |
-| Android | arm64-v8a | 进程内 | CI 无签名 debug APK |
-| iOS | arm64 device、arm64 simulator | 进程内 | CI device library / simulator app |
-
-移动商店包、真实设备发布和生产签名需要平台凭据；CI 中的移动产物是编译与链接验证，不代表已签名发布。
 
 ## 安装
 
@@ -89,9 +85,9 @@ brew upgrade --cask epub-tool-newui
 
 ## 本地开发与编译
 
-详见 [本地开发指南](./assets/docs/LOCAL_DEVELOPMENT.md)。其中包括 Linux、macOS、Windows、Android、iOS 的
+详见 [本地开发指南](./assets/docs/LOCAL_DEVELOPMENT.md)。其中包括 Linux、macOS、Windows 的
 系统依赖，Node.js 与 Rust 环境配置、应用启动、Rust 测试、安装包构建、OCR 资源校验及
-`cargo metadata` 报错排查、移动 ONNX Runtime 准备和签名边界。
+`cargo metadata` 报错排查。
 
 ## 仓库结构
 
@@ -99,7 +95,7 @@ brew upgrade --cask epub-tool-newui
 - `src-tauri/`：Tauri 壳层、Rust 任务引擎、ONNX/OpenCC 资源与打包配置
 - `src-tauri/src/rust_backend/`：按 `epub`、`image`、`text`、`font` 分类的任务实现
 - `src-tauri/tests/`：核心任务、输出、事件和进程内运行时集成回归
-- `xtask/`：OCR 模型校验、移动 ONNX Runtime、移动构建和发布维护工具
+- `xtask/`：OCR 模型校验、macOS ONNX Runtime 准备、桌面构建和发布维护工具
 - `proto/`：Tauri IPC Protobuf wire contract
 - `assets/docs/`：架构、构建、协议与发布说明
 - `assets/img/`：README、前端与应用打包共用图像资源

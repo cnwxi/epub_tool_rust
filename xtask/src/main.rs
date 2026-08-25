@@ -9,12 +9,9 @@ use std::{
 use zip::ZipArchive;
 
 const ORT_VERSION: &str = "1.24.3";
-const ANDROID_URL: &str = "https://repo1.maven.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/1.24.3/onnxruntime-android-1.24.3.aar";
-const ANDROID_SHA256: &str = "67397e4a970e75617f765d2015ceaf911917e1d822276cfb5792744e8085cbce";
-const IOS_URL: &str = "https://download.onnxruntime.ai/pod-archive-onnxruntime-c-1.24.3.zip";
-const IOS_SHA256: &str = "b7eedc45932bac758ffd057cac0feb3f682269e47750b159e4c865145cbf0a8e";
+const MACOS_URL: &str = "https://download.onnxruntime.ai/pod-archive-onnxruntime-c-1.24.3.zip";
+const MACOS_SHA256: &str = "b7eedc45932bac758ffd057cac0feb3f682269e47750b159e4c865145cbf0a8e";
 const DEFAULT_OCR_MODEL: &str = "PP-OCRv6_small_rec";
-const ANDROID_NDK_VERSION: &str = "29.0.13846066";
 
 fn main() -> ExitCode {
     match run(env::args().skip(1).collect()) {
@@ -32,21 +29,14 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
     };
     match command {
         "verify-ocr-model" => verify_ocr_model(arguments.get(1).map(String::as_str)),
-        "prepare-mobile-ort" => {
-            let platform = arguments.get(1).ok_or_else(usage)?;
-            let target = arguments.get(2).map(String::as_str);
-            prepare_mobile_ort(platform, target).map(|_| ())
-        }
         "desktop-build" => desktop_build(&arguments[1..]),
-        "mobile-build" => mobile_build(&arguments[1..]),
-        "mobile-dev" => mobile_dev(&arguments[1..]),
         "update-homebrew-cask" => update_homebrew_cask(&arguments[1..]),
         _ => Err(usage()),
     }
 }
 
 fn usage() -> String {
-    "Usage:\n  cargo run --locked --manifest-path xtask/Cargo.toml -- verify-ocr-model [model-name]\n  cargo run --locked --manifest-path xtask/Cargo.toml -- prepare-mobile-ort android <aarch64|armv7|i686|x86_64>\n  cargo run --locked --manifest-path xtask/Cargo.toml -- prepare-mobile-ort ios\n  cargo run --locked --manifest-path xtask/Cargo.toml -- desktop-build [Tauri build options]\n  cargo run --locked --manifest-path xtask/Cargo.toml -- mobile-build android <target> [Tauri build options]\n  cargo run --locked --manifest-path xtask/Cargo.toml -- mobile-build ios <target> [Tauri build options]\n  cargo run --locked --manifest-path xtask/Cargo.toml -- mobile-dev android <target> [Tauri dev options/device]\n  cargo run --locked --manifest-path xtask/Cargo.toml -- mobile-dev ios <target> [Tauri dev options/device]\n  cargo run --locked --manifest-path xtask/Cargo.toml -- update-homebrew-cask <formula> <version> <arm64-sha256> <x64-sha256> <url>".to_string()
+    "Usage:\n  cargo run --locked --manifest-path xtask/Cargo.toml -- verify-ocr-model [model-name]\n  cargo run --locked --manifest-path xtask/Cargo.toml -- desktop-build [Tauri build options]\n  cargo run --locked --manifest-path xtask/Cargo.toml -- update-homebrew-cask <formula> <version> <arm64-sha256> <x64-sha256> <url>".to_string()
 }
 
 fn repo_root() -> Result<PathBuf, String> {
@@ -112,154 +102,6 @@ fn desktop_build(arguments: &[String]) -> Result<(), String> {
     } else {
         Err(format!("桌面 Tauri 构建失败: {status}"))
     }
-}
-
-fn mobile_build(arguments: &[String]) -> Result<(), String> {
-    let platform = arguments.first().ok_or_else(usage)?;
-    let target = arguments.get(1).ok_or_else(usage)?;
-    if platform == "android" {
-        ensure_android_project_icon()?;
-    }
-    // Verify the model with the host runtime before mobile linker variables are set.
-    verify_ocr_model(None)?;
-    let prepared = prepare_mobile_ort(platform, Some(target))?;
-    let mut command = npm_command();
-    command
-        .current_dir(repo_root()?)
-        .args(["run", "tauri", "--", platform, "build", "--target", target]);
-    command.args(&arguments[2..]);
-    configure_mobile_link_environment(&mut command, platform, &prepared)?;
-    let status = command
-        .status()
-        .map_err(|error| format!("启动 Tauri {platform} 构建失败: {error}"))?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err(format!("Tauri {platform} 构建失败: {status}"))
-    }
-}
-
-fn mobile_dev(arguments: &[String]) -> Result<(), String> {
-    let platform = arguments.first().ok_or_else(usage)?;
-    let target = arguments.get(1).ok_or_else(usage)?;
-    if platform == "android" {
-        ensure_android_project_icon()?;
-    }
-    verify_ocr_model(None)?;
-    let prepared = prepare_mobile_ort(platform, Some(target))?;
-    let mut command = npm_command();
-    command
-        .current_dir(repo_root()?)
-        .args(["run", "tauri", "--", platform, "dev"])
-        .args(&arguments[2..]);
-    configure_mobile_link_environment(&mut command, platform, &prepared)?;
-    let status = command
-        .status()
-        .map_err(|error| format!("启动 Tauri {platform} 开发环境失败: {error}"))?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err(format!("Tauri {platform} 开发环境失败: {status}"))
-    }
-}
-
-fn ensure_android_project_icon() -> Result<(), String> {
-    let root = repo_root()?;
-    let project_dir = root.join("src-tauri/gen/android");
-    if !project_dir.join("app/build.gradle.kts").is_file() {
-        let status = npm_command()
-            .current_dir(&root)
-            .args([
-                "run",
-                "tauri",
-                "--",
-                "android",
-                "init",
-                "--ci",
-                "--skip-targets-install",
-            ])
-            .status()
-            .map_err(|error| format!("初始化 Android 原生工程失败: {error}"))?;
-        if !status.success() {
-            return Err(format!("初始化 Android 原生工程失败: {status}"));
-        }
-    }
-
-    let status = npm_command()
-        .current_dir(&root)
-        .args([
-            "run",
-            "tauri",
-            "--",
-            "icon",
-            "assets/img/icon.png",
-            "--output",
-            "src-tauri/.icon-build",
-        ])
-        .status()
-        .map_err(|error| format!("生成 Android launcher 图标失败: {error}"))?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err(format!("生成 Android launcher 图标失败: {status}"))
-    }
-}
-
-fn configure_mobile_link_environment(
-    command: &mut Command,
-    platform: &str,
-    prepared: &Path,
-) -> Result<(), String> {
-    match platform {
-        "android" => {
-            command.env("ORT_LIB_PATH", prepared);
-            command.env("ORT_PREFER_DYNAMIC_LINK", "1");
-            command.env("DEP_Z_INCLUDE", android_zlib_include()?);
-        }
-        "ios" => {
-            command.env("ORT_IOS_XCFWK_PATH", prepared);
-        }
-        _ => return Err(format!("不支持的移动平台: {platform}")),
-    }
-    Ok(())
-}
-
-fn android_zlib_include() -> Result<PathBuf, String> {
-    let mut ndk_roots = Vec::new();
-    for variable in ["ANDROID_NDK_HOME", "ANDROID_NDK_ROOT"] {
-        if let Ok(value) = env::var(variable) {
-            if !value.trim().is_empty() {
-                ndk_roots.push(PathBuf::from(value));
-            }
-        }
-    }
-    if let Ok(sdk) = env::var("ANDROID_HOME").or_else(|_| env::var("ANDROID_SDK_ROOT")) {
-        ndk_roots.push(PathBuf::from(sdk).join("ndk").join(ANDROID_NDK_VERSION));
-    }
-
-    let host = if cfg!(target_os = "windows") {
-        "windows-x86_64"
-    } else if cfg!(target_os = "macos") {
-        "darwin-x86_64"
-    } else {
-        "linux-x86_64"
-    };
-    for root in ndk_roots {
-        let include = root
-            .join("toolchains")
-            .join("llvm")
-            .join("prebuilt")
-            .join(host)
-            .join("sysroot")
-            .join("usr")
-            .join("include");
-        if include.join("zlib.h").is_file() {
-            return Ok(include);
-        }
-    }
-    Err(format!(
-        "无法定位 Android NDK {ANDROID_NDK_VERSION} 的 zlib 头文件，请设置 ANDROID_NDK_HOME 或 ANDROID_HOME"
-    ))
 }
 
 fn npm_command() -> Command {
@@ -343,88 +185,38 @@ fn find_cask_line(lines: &[String], prefix: &str) -> Result<usize, String> {
         .ok_or_else(|| format!("Homebrew Cask 缺少 {prefix}字段"))
 }
 
-fn prepare_mobile_ort(platform: &str, target: Option<&str>) -> Result<PathBuf, String> {
-    match platform {
-        "android" => prepare_android_ort(target.ok_or_else(usage)?),
-        "ios" => prepare_ios_ort(),
-        _ => Err(format!("不支持的移动平台: {platform}")),
-    }
-}
-
-fn prepare_android_ort(target: &str) -> Result<PathBuf, String> {
-    let abi = android_abi(target).ok_or_else(|| format!("不支持的 Android target: {target}"))?;
+fn prepare_macos_ort_framework() -> Result<PathBuf, String> {
     let root = repo_root()?;
-    let cache = root.join("src-tauri/.mobile-runtime");
-    let archive = cache
-        .join("archives")
-        .join(format!("onnxruntime-android-{ORT_VERSION}.aar"));
-    let archive = verified_archive(
-        "EPUB_TOOL_ORT_ANDROID_ARCHIVE",
-        ANDROID_URL,
-        ANDROID_SHA256,
-        &archive,
-    )?;
-
-    let library_dir = cache
-        .join(format!("onnxruntime-android-{ORT_VERSION}"))
-        .join(abi);
-    let library = library_dir.join("libonnxruntime.so");
-    extract_file(&archive, &format!("jni/{abi}/libonnxruntime.so"), &library)?;
-
-    let android_project = root.join("src-tauri/gen/android/app/src/main");
-    if android_project.is_dir() {
-        let packaged = android_project
-            .join("jniLibs")
-            .join(abi)
-            .join("libonnxruntime.so");
-        copy_if_changed(&library, &packaged)?;
-    }
-    println!(
-        "Android ONNX Runtime prepared: target={target} abi={abi} ORT_LIB_PATH={}",
-        library_dir.display()
-    );
-    Ok(library_dir)
-}
-
-fn android_abi(target: &str) -> Option<&'static str> {
-    match target {
-        "aarch64" => Some("arm64-v8a"),
-        "armv7" => Some("armeabi-v7a"),
-        "i686" => Some("x86"),
-        "x86_64" => Some("x86_64"),
-        _ => None,
-    }
-}
-
-fn prepare_ios_ort() -> Result<PathBuf, String> {
-    let root = repo_root()?;
-    let cache = root.join("src-tauri/.mobile-runtime");
+    let cache = root.join("src-tauri/.desktop-runtime");
     let archive = cache
         .join("archives")
         .join(format!("onnxruntime-c-{ORT_VERSION}.zip"));
-    let archive = verified_archive("EPUB_TOOL_ORT_IOS_ARCHIVE", IOS_URL, IOS_SHA256, &archive)?;
+    let archive = verified_archive(
+        "EPUB_TOOL_ORT_MACOS_ARCHIVE",
+        MACOS_URL,
+        MACOS_SHA256,
+        &archive,
+    )?;
     let destination = cache.join(format!("onnxruntime-c-{ORT_VERSION}"));
     let framework = destination.join("onnxruntime.xcframework");
     for prefix in [
         "onnxruntime.xcframework/Info.plist",
         "onnxruntime.xcframework/macos-arm64_x86_64/",
-        "onnxruntime.xcframework/ios-arm64/",
-        "onnxruntime.xcframework/ios-arm64_x86_64-simulator/",
     ] {
         extract_prefix(&archive, prefix, &destination)?;
     }
-    for slice in ["ios-arm64", "ios-arm64_x86_64-simulator"] {
-        let binary = framework
-            .join(slice)
-            .join("onnxruntime.framework/onnxruntime");
-        if !binary.is_file() {
-            return Err(format!("iOS ONNX Runtime 切片不完整: {}", binary.display()));
-        }
+    let binary = framework
+        .join("macos-arm64_x86_64")
+        .join("onnxruntime.framework")
+        .join("Versions")
+        .join("A")
+        .join("onnxruntime");
+    if !binary.is_file() {
+        return Err(format!(
+            "macOS ONNX Runtime 切片不完整: {}",
+            binary.display()
+        ));
     }
-    println!(
-        "iOS ONNX Runtime prepared: ORT_IOS_XCFWK_PATH={}",
-        framework.display()
-    );
     Ok(framework)
 }
 
@@ -446,7 +238,7 @@ fn macos_onnx_runtime_library(framework: &Path) -> Result<PathBuf, String> {
 }
 
 fn prepare_macos_ort() -> Result<PathBuf, String> {
-    let framework = prepare_ios_ort()?;
+    let framework = prepare_macos_ort_framework()?;
     let library = macos_onnx_runtime_library(&framework)?;
     let destination = framework
         .parent()
@@ -538,20 +330,6 @@ fn sha256(path: &Path) -> Result<String, String> {
     Ok(format!("{:x}", digest.finalize()))
 }
 
-fn extract_file(archive: &Path, entry_name: &str, destination: &Path) -> Result<(), String> {
-    if destination.is_file() {
-        return Ok(());
-    }
-    let file = File::open(archive)
-        .map_err(|error| format!("打开归档失败 {}: {error}", archive.display()))?;
-    let mut zip = ZipArchive::new(file)
-        .map_err(|error| format!("读取归档失败 {}: {error}", archive.display()))?;
-    let mut entry = zip
-        .by_name(entry_name)
-        .map_err(|error| format!("归档缺少 {entry_name}: {error}"))?;
-    write_zip_entry(&mut entry, destination)
-}
-
 fn extract_prefix(archive: &Path, prefix: &str, destination: &Path) -> Result<(), String> {
     let file = File::open(archive)
         .map_err(|error| format!("打开归档失败 {}: {error}", archive.display()))?;
@@ -634,16 +412,7 @@ fn copy_if_changed(source: &Path, destination: &Path) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{android_abi, updated_homebrew_cask};
-
-    #[test]
-    fn maps_every_tauri_android_target_to_its_aar_abi() {
-        assert_eq!(android_abi("aarch64"), Some("arm64-v8a"));
-        assert_eq!(android_abi("armv7"), Some("armeabi-v7a"));
-        assert_eq!(android_abi("i686"), Some("x86"));
-        assert_eq!(android_abi("x86_64"), Some("x86_64"));
-        assert_eq!(android_abi("unknown"), None);
-    }
+    use super::updated_homebrew_cask;
 
     #[test]
     fn updates_homebrew_cask_without_external_script_runtime() {

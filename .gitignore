@@ -16,7 +16,7 @@ frontend/node_modules/
 node_modules/
 src-tauri/target/
 src-tauri/gen/
-src-tauri/.mobile-runtime/
+src-tauri/.desktop-runtime/
 src-tauri/.icon-build/
 xtask/target/
 src-tauri/binaries/*

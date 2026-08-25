@@ -80,7 +80,7 @@ Stylo 负责选择器、级联和计算样式。外链 CSS、递归 `@import`、
 
 - OCR：`bundle-resources/ocr-models/PP-OCRv6_small_rec_onnx/`
 - OpenCC：`bundle-resources/opencc/`
-- 移动 ONNX Runtime：由 `xtask` 下载、校验并解压到 `.mobile-runtime/`
+- macOS ONNX Runtime：由 `xtask` 下载、校验并解压到 `.desktop-runtime/`
 
 桌面直接从开发目录或 Tauri resource dir 定位资源。移动端首次运行将已打包文件复制到应用数据目录，校验文件完整性后配置相同核心。
 
@@ -91,11 +91,9 @@ Stylo 负责选择器、级联和计算样式。外链 CSS、递归 `@import`、
 | Windows | x64、arm64 | in-process | ONNX Runtime | NSIS |
 | macOS | x64、arm64 | in-process | ONNX Runtime | app、DMG |
 | Linux | x64、arm64 | in-process | ONNX Runtime | deb、rpm |
-| Android | arm64-v8a | in-process | ORT Android 1.24.3 | unsigned debug APK |
-| iOS | arm64 device、arm64 simulator | in-process | ORT iOS 1.24.3 | device library、unsigned simulator app |
 
-目录选择、目录扫描和打开路径是桌面能力；移动端使用文件 URI、缓存暂存与结果导出。任务类型、运行时与字体 OCR 不因平台而分叉。
+目录选择、目录扫描、打开路径和输出文件访问均由桌面运行时直接处理。任务类型、运行时与字体 OCR 不因桌面平台而分叉。
 
 ## 验证边界
 
-宿主单元/集成测试验证业务逻辑、类型化 contract 和进程内运行时。Android/iOS 必须由相应 SDK、NDK、Xcode 和 Rust target 完成真实交叉链接。CI 的移动产物不带生产签名；Android release keystore、Apple Team、证书、provisioning、device archive、IPA、商店上传和公证属于外部凭据边界。
+宿主单元/集成测试验证业务逻辑、类型化 contract 和进程内运行时。桌面安装包还需在目标系统完成启动、任务执行、输出和日志回归；代码签名、公证、商店上传属于外部凭据边界。

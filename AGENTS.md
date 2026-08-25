@@ -4,7 +4,7 @@
 
 ## 项目概览
 
-Epub Tool 是面向 EPUB 批量处理的跨平台应用，技术栈为 Tauri 2、Vue 3、TypeScript 与 Rust。Windows、macOS、Linux、Android、iOS 均在应用进程内执行同一个平台无关 Rust 业务核心。
+Epub Tool 是面向 EPUB 批量处理的桌面应用，技术栈为 Tauri 2、Vue 3、TypeScript 与 Rust。Windows、macOS、Linux 均在应用进程内执行同一个 Rust 业务核心。
 
 当前任务类型：
 
@@ -51,14 +51,9 @@ npm run build:verify-ocr-model
 # 当前桌面平台生产打包
 npm run tauri:build
 
-# 移动端无签名构建示例
-npm run tauri:android:init -- --ci
-npm run tauri:android:build -- aarch64 --debug --apk --ci
-npm run tauri:ios:init -- --ci
-npm run tauri:ios:build -- aarch64-sim --debug --ci
 ```
 
-Node 版本见 `.nvmrc`。移动端必须使用 Rustup 安装相应 target；Android 还需要 SDK 36、NDK `29.0.13846066` 与 JDK 17，iOS 需要完整 Xcode。
+Node 版本见 `.nvmrc`。
 
 ## 架构
 
@@ -84,7 +79,7 @@ Vue / generated TypeScript protobuf types
 - `src-tauri/src/rust_backend/`：统一 EPUB 业务核心，按 `epub`、`font`、`image`、`text` 分类。
 - `src-tauri/src/runtime/`：全平台进程内运行时、平台能力、路径和资源定位。
 - `src-tauri/tests/`：跨模块任务与核心协议集成回归。
-- `xtask/`：OCR 模型校验、移动 ONNX Runtime 准备、移动构建和发布维护工具。
+- `xtask/`：OCR 模型校验、macOS ONNX Runtime 准备、桌面构建和发布维护工具。
 - `src-tauri/bundle-resources/`：OCR 模型与 OpenCC 运行资源。
 - `assets/docs/`：架构、协议、构建、发布和 UI 规范。
 
@@ -92,8 +87,7 @@ Vue / generated TypeScript protobuf types
 
 - Protobuf 只属于 IPC 边界。业务服务不得接收 wire message、动态 JSON 或 Tauri 类型。
 - 新任务必须实现统一 `EpubTask`，通过 `TaskSpec`/`TaskOptions` 输入并产生 `TaskEvent`/`TaskResult`。
-- 桌面与移动必须调用同一 `rust_backend`；平台差异只能留在 `runtime`、权限、资源定位与 IPC 层。
-- 所有平台必须通过 `spawn_blocking` 调用同一个进程内 `EngineRuntime`，不得新增任务子进程、sidecar 或动态适配层。
+- 所有桌面平台必须通过 `spawn_blocking` 调用同一个进程内 `EngineRuntime`，不得新增任务子进程、sidecar 或动态适配层。
 - `font_style.rs` 中的 Stylo 是生产环境唯一的 CSS 选择器、级联与计算样式引擎。不得添加第二套 cascade、旧规则 fallback 或按节点静默降级。
 - 字体扫描、加密和解密必须复用 `FontEncryptionPlan` 及其字符级字体分配结果。
 - 字体管线必须保留 family stack、weight、style、stretch、`unicode-range`、多 `src`、来源顺序、继承、变量、`!important` 与复杂选择器语义。
@@ -108,10 +102,6 @@ Vue / generated TypeScript protobuf types
 | Windows | x64、arm64 | 进程内 | 启用 | NSIS |
 | macOS | x64、arm64 | 进程内 | 启用 | app、DMG |
 | Linux | x64、arm64 | 进程内 | 启用 | deb、rpm |
-| Android | arm64-v8a、armeabi-v7a、x86、x86_64 | 进程内 | 启用 | 无签名 debug APK 编译验证 |
-| iOS | arm64 device、arm64 simulator | 进程内 | 启用 | device Rust library 与无签名 simulator app 编译验证 |
-
-Android release 签名、iOS device archive/IPA、商店上传、公证与生产代码签名需要外部凭据；没有凭据时只能声明编译验证，不能声明签名发布成功。
 
 ## 行为约定
 
@@ -145,7 +135,7 @@ npm run build
 npm run build:verify-ocr-model
 ```
 
-仅在安装对应 SDK、NDK、Xcode 与 Rust targets 的主机上声明移动构建通过。真实设备、代码签名、公证和商店发布未执行时必须明确说明。
+桌面安装包仍需在目标系统上做启动、任务执行、输出、日志和真实 EPUB 回归；代码签名、公证和商店发布未执行时必须明确说明。
 
 ## Codex 执行规范
 

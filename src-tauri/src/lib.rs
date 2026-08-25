@@ -9,7 +9,6 @@ pub mod rust_backend;
 
 pub use task_types::{TaskEvent, TaskOptions, TaskResult, TaskSpec, TaskType};
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     app::run();
 }

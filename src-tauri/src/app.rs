@@ -1,5 +1,5 @@
 use crate::{
-    commands::{self, OpenedSources, PersistedStore},
+    commands::{self, PersistedStore},
     runtime::RuntimeServices,
 };
 use tauri::Manager;
@@ -10,7 +10,6 @@ use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
 #[cfg(target_os = "windows")]
 use window_vibrancy::{apply_blur, apply_mica};
 
-#[cfg(not(mobile))]
 fn setup_window_effects(app: &tauri::App) -> Result<(), String> {
     let window = app
         .get_webview_window("main")
@@ -40,25 +39,17 @@ fn setup_window_effects(app: &tauri::App) -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(mobile)]
-fn setup_window_effects(_app: &tauri::App) -> Result<(), String> {
-    Ok(())
-}
-
 pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             app.manage(PersistedStore::load(app.handle()));
             app.manage(RuntimeServices::new(app.handle())?);
-            app.manage(OpenedSources::new());
             setup_window_effects(app)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             commands::files::collect_epub_files,
-            commands::files::export_output,
             commands::files::get_log_path,
             commands::engine::get_platform_capabilities,
             commands::state::get_persisted_store_path,
@@ -70,29 +61,10 @@ pub fn run() {
             commands::files::resolve_input_sources,
             commands::tasks::run_epub_task,
             commands::state::save_persisted_state,
-            commands::files::stage_source_for_task,
-            commands::files::take_opened_sources,
             commands::files::validate_output_directory,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
 
-    app.run(|app_handle, event| {
-        #[cfg(mobile)]
-        if let tauri::RunEvent::Opened { urls } = event {
-            use tauri::Emitter;
-
-            let opened_sources = urls
-                .into_iter()
-                .map(|url| url.to_string())
-                .collect::<Vec<_>>();
-            app_handle
-                .state::<OpenedSources>()
-                .extend(opened_sources.iter().cloned());
-            let _ = app_handle.emit("opened", opened_sources);
-        }
-
-        #[cfg(not(mobile))]
-        let _ = (app_handle, event);
-    });
+    app.run(|_, _| {});
 }

@@ -15,14 +15,13 @@ pub struct PlatformCapabilities {
 
 impl PlatformCapabilities {
     pub fn current() -> Self {
-        let mobile = cfg!(any(target_os = "android", target_os = "ios"));
         Self {
             platform: current_platform(),
             runtime: "inProcess",
-            supports_directory_picker: !mobile,
-            supports_directory_scan: !mobile,
-            supports_open_path: !mobile,
-            requires_output_export: mobile,
+            supports_directory_picker: true,
+            supports_directory_scan: true,
+            supports_open_path: true,
+            requires_output_export: false,
             supports_file_associations: true,
             supports_font_ocr: true,
         }
@@ -30,11 +29,7 @@ impl PlatformCapabilities {
 }
 
 fn current_platform() -> &'static str {
-    if cfg!(target_os = "android") {
-        "android"
-    } else if cfg!(target_os = "ios") {
-        "ios"
-    } else if cfg!(target_os = "macos") {
+    if cfg!(target_os = "macos") {
         "macos"
     } else if cfg!(target_os = "windows") {
         "windows"
@@ -50,7 +45,6 @@ mod tests {
     use super::PlatformCapabilities;
 
     #[test]
-    #[cfg(not(mobile))]
     fn desktop_capabilities_use_in_process_runtime() {
         let capabilities = PlatformCapabilities::current();
         assert_eq!(capabilities.runtime, "inProcess");

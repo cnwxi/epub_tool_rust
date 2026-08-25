@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf, sync::Mutex};
+use std::{fs, path::PathBuf};
 
 use serde::Serialize;
 use tauri::{AppHandle, State};
@@ -6,28 +6,6 @@ use tauri::{AppHandle, State};
 use crate::runtime::{resolve_log_path, RuntimeServices};
 
 const COVER_PREVIEW_MAX_BYTES: u64 = 20 * 1024 * 1024;
-
-pub struct OpenedSources(Mutex<Vec<String>>);
-
-impl OpenedSources {
-    pub fn new() -> Self {
-        Self(Mutex::new(Vec::new()))
-    }
-
-    #[cfg(mobile)]
-    pub fn extend(&self, sources: impl IntoIterator<Item = String>) {
-        if let Ok(mut stored) = self.0.lock() {
-            stored.extend(sources);
-        }
-    }
-
-    fn take(&self) -> Result<Vec<String>, String> {
-        self.0
-            .lock()
-            .map(|mut sources| std::mem::take(&mut *sources))
-            .map_err(|_| "已打开文件列表锁已损坏".to_string())
-    }
-}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -50,10 +28,6 @@ pub async fn get_log_path(app: AppHandle) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub async fn take_opened_sources(state: State<'_, OpenedSources>) -> Result<Vec<String>, String> {
-    state.take()
-}
-
 #[tauri::command]
 pub async fn read_image_preview(path: String) -> Result<ImagePreviewResponse, String> {
     let image_path = PathBuf::from(path);
@@ -107,32 +81,6 @@ pub async fn resolve_input_sources(
         .map_err(|error| format!("解析输入来源失败: {error}"))?
 }
 
-#[tauri::command]
-pub async fn stage_source_for_task(
-    services: State<'_, RuntimeServices>,
-    source_path: String,
-    extension: String,
-) -> Result<String, String> {
-    let files = services.files();
-    tauri::async_runtime::spawn_blocking(move || files.stage_source(&source_path, &extension))
-        .await
-        .map_err(|error| format!("暂存任务输入失败: {error}"))?
-}
-
-#[tauri::command]
-pub async fn export_output(
-    services: State<'_, RuntimeServices>,
-    source_path: String,
-    destination_path: String,
-) -> Result<(), String> {
-    let files = services.files();
-    tauri::async_runtime::spawn_blocking(move || {
-        files.export_output(&source_path, &destination_path)
-    })
-    .await
-    .map_err(|error| format!("导出处理结果失败: {error}"))?
-}
-
 fn detect_preview_image_mime(bytes: &[u8]) -> Option<&'static str> {
     if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
         return Some("image/jpeg");
@@ -148,7 +96,7 @@ fn detect_preview_image_mime(bytes: &[u8]) -> Option<&'static str> {
 
 #[cfg(test)]
 mod tests {
-    use super::{detect_preview_image_mime, OpenedSources};
+    use super::detect_preview_image_mime;
 
     #[test]
     fn detects_supported_preview_formats() {
@@ -165,13 +113,5 @@ mod tests {
             Some("image/webp")
         );
         assert_eq!(detect_preview_image_mime(b"GIF89a"), None);
-    }
-
-    #[test]
-    fn opened_sources_are_consumed_once() {
-        let sources = OpenedSources::new();
-        sources.0.lock().unwrap().push("book.epub".to_string());
-        assert_eq!(sources.take().unwrap(), vec!["book.epub"]);
-        assert!(sources.take().unwrap().is_empty());
     }
 }
