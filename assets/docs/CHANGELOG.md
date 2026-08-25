@@ -1,5 +1,9 @@
 # 更新日志
 
+### 26.8.25
+将平台无关的 EPUB、字体、图片和文本处理逻辑抽取至独立的 `epub_tool_core` 仓库；桌面端固定依赖 `v26.8.25`，继续通过类型化任务契约执行统一核心。<br>
+保留 Tauri IPC、桌面进程内运行时、OCR/OpenCC 资源定位、窗口与 UI 适配；删除客户端中的重复 Rust 业务实现和核心回归测试。<br>
+
 ### 26.8.11
 完成纯 Rust 统一业务内核重构：Windows、macOS、Linux、Android 与 iOS 全部在应用进程内执行同一个 Rust 核心，共享同一套 `TaskSpec`、`TaskOptions`、`TaskEvent` 与 `TaskResult`，不再启动任务子进程。<br>
 全部现有 EPUB、字体、图片和简繁转换任务迁移至 Rust；删除 Python 后端、sidecar、依赖、生成代码、测试脚本及构建发布链路中的 Python 运行时要求。<br>
