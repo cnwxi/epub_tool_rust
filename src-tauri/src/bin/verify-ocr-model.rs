@@ -18,6 +18,7 @@ fn run() -> Result<(), String> {
     if arguments.next().is_some() {
         return Err("Usage: verify-ocr-model <model-dir>".to_string());
     }
-    epub_tool_newui::rust_backend::font::decrypt_font::verify_ocr_model_dir(Path::new(&model_dir))
+    epub_tool_core::verify_ocr_model_dir(Path::new(&model_dir))
         .map(|_| ())
+        .map_err(|error| error.to_string())
 }

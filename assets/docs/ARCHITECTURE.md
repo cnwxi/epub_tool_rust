@@ -10,7 +10,7 @@ Vue / TypeScript
   -> Tauri commands + engine_adapter
   -> typed TaskSpec
   -> in-process EngineRuntime (spawn_blocking)
-  -> rust_backend::run
+  -> epub_tool_core::run
   -> typed TaskEvent + TaskResult
 ```
 
@@ -18,7 +18,7 @@ Vue / TypeScript
 
 ## 核心 contract
 
-`src-tauri/src/task_types.rs` 定义：
+`epub_tool_core::task` 定义：
 
 - `TaskType`
 - `TaskOptions` 及其类型化 option structs
@@ -38,7 +38,7 @@ Vue / TypeScript
 - 决定稳定输出后缀；
 - 在 `EpubWorkspace` 上处理单本 EPUB。
 
-`rust_backend::run` 统一处理输出目录、日志、批量进度、错误、跳过、结果汇总和最终事件。所有 EPUB 输出使用安全临时文件写入，并规范 `mimetype` 为第一个未压缩 ZIP 成员。
+`epub_tool_core::run` 统一处理输出目录、日志、批量进度、错误、跳过、结果汇总和最终事件。所有 EPUB 输出使用安全临时文件写入，并规范 `mimetype` 为第一个未压缩 ZIP 成员。
 
 ## 字体流水线
 
@@ -82,7 +82,7 @@ Stylo 负责选择器、级联和计算样式。外链 CSS、递归 `@import`、
 - OpenCC：`bundle-resources/opencc/`
 - macOS ONNX Runtime：由 `xtask` 下载、校验并解压到 `.desktop-runtime/`
 
-桌面直接从开发目录或 Tauri resource dir 定位资源。移动端首次运行将已打包文件复制到应用数据目录，校验文件完整性后配置相同核心。
+桌面运行时从开发目录或 Tauri resource dir 定位资源，并通过 `EngineConfig` 显式传入共享核心。共享核心不推断平台路径；移动端首次运行将已打包文件复制到应用数据目录后以同样方式传入。
 
 ## 平台矩阵
 

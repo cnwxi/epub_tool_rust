@@ -9,7 +9,6 @@ use crate::{
         FontScanProgress, FontScanResult, ProtocolVersion,
     },
     runtime::{resolve_log_path, ExecutionRequest, RuntimeServices},
-    rust_backend,
 };
 
 #[tauri::command]
@@ -30,7 +29,8 @@ pub async fn list_font_targets_batch(
         for (position, input_file) in scan_request.input_files.into_iter().enumerate() {
             let result = engine_adapter::font_target_result(
                 input_file.clone(),
-                rust_backend::font::font_targets::list_font_targets(Path::new(&input_file)),
+                epub_tool_core::list_font_targets(Path::new(&input_file))
+                    .map_err(|error| error.to_string()),
             );
             on_event
                 .send(EngineEvent {

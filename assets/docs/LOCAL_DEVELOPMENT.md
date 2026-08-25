@@ -57,7 +57,7 @@ npm run tauri:dev
 启动顺序是：校验内置 ONNX OCR 模型、启动 Vite、启动 Tauri。桌面任务路径一致：
 
 ```text
-Vue -> Tauri IPC -> spawn_blocking -> in-process EngineRuntime -> rust_backend
+Vue -> Tauri IPC -> spawn_blocking -> in-process EngineRuntime -> epub_tool_core
 ```
 
 仅调试前端时：

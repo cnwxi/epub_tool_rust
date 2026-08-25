@@ -1,16 +1,14 @@
 //! Explicit conversions between the versioned Protobuf wire contract and the
 //! platform-independent Rust task contract.
 
-use crate::{
-    engine_protocol::v1::{
-        engine_response, task_options, FileIssue, FontTargetResult, RunTaskRequest,
-        TaskEvent as WireTaskEvent, TaskOptions as WireTaskOptions, TaskResult as WireTaskResult,
-        TaskSummary as WireTaskSummary, TaskType as WireTaskType,
-    },
-    task_types::{
-        ChineseConversionDirection, FileIssue as CoreFileIssue, FontTaskOptions, ImageTaskOptions,
-        OcrCharPolicy, ReplaceCoverOptions, TaskEvent, TaskOptions, TaskResult, TaskSpec, TaskType,
-    },
+use crate::engine_protocol::v1::{
+    engine_response, task_options, FileIssue, FontTargetResult, RunTaskRequest,
+    TaskEvent as WireTaskEvent, TaskOptions as WireTaskOptions, TaskResult as WireTaskResult,
+    TaskSummary as WireTaskSummary, TaskType as WireTaskType,
+};
+use epub_tool_core::{
+    ChineseConversionDirection, FileIssue as CoreFileIssue, FontTaskOptions, ImageTaskOptions,
+    OcrCharPolicy, ReplaceCoverOptions, TaskEvent, TaskOptions, TaskResult, TaskSpec, TaskType,
 };
 use std::{collections::BTreeMap, path::PathBuf};
 

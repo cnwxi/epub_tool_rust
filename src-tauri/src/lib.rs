@@ -1,13 +1,11 @@
 mod app;
 mod commands;
 mod runtime;
-pub mod task_types;
 
 pub mod engine_adapter;
 pub mod engine_protocol;
-pub mod rust_backend;
 
-pub use task_types::{TaskEvent, TaskOptions, TaskResult, TaskSpec, TaskType};
+pub use epub_tool_core::{TaskEvent, TaskOptions, TaskResult, TaskSpec, TaskType};
 
 pub fn run() {
     app::run();

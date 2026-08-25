@@ -78,9 +78,8 @@
 ## 仓库结构
 
 - `frontend/`：Vue 3 跨平台前端
-- `src-tauri/`：Tauri 壳层、Rust 任务引擎、ONNX/OpenCC 资源与打包配置
-- `src-tauri/src/rust_backend/`：按 `epub`、`image`、`text`、`font` 分类的任务实现
-- `src-tauri/tests/`：核心任务、输出、事件和进程内运行时集成回归
+- `src-tauri/`：Tauri 壳层、平台运行时、ONNX/OpenCC 资源与打包配置
+- `epub_tool_core`：固定 Git tag 的共享 Rust EPUB 核心；本地联调通过 Cargo `[patch]` 覆盖
 - `xtask/`：OCR 模型校验、macOS ONNX Runtime 准备、桌面构建和发布维护工具
 - `proto/`：Tauri IPC Protobuf wire contract
 - `assets/docs/`：架构、构建、协议与发布说明

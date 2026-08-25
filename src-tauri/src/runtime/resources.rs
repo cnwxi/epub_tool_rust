@@ -11,21 +11,10 @@ pub struct RuntimeResources {
 }
 
 pub fn prepare(app: &AppHandle) -> Result<RuntimeResources, String> {
-    let resources = RuntimeResources {
+    Ok(RuntimeResources {
         opencc_dir: resolve_opencc_dir(app),
         ocr_model_dir: resolve_ocr_model_dir(app),
-    };
-    if let Some(directory) = &resources.opencc_dir {
-        crate::rust_backend::text::configure_resource_dir(directory.clone())?;
-    }
-    if let Some(directory) = &resources.ocr_model_dir {
-        crate::rust_backend::font::decrypt_font::configure_ocr_resources(
-            crate::rust_backend::font::decrypt_font::OcrResourcePaths {
-                model_dir: directory.clone(),
-            },
-        )?;
-    }
-    Ok(resources)
+    })
 }
 
 fn resolve_opencc_dir(app: &AppHandle) -> Option<PathBuf> {

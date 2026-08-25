@@ -992,8 +992,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "epub_tool_newui"
-version = "26.8.11"
+name = "epub_tool_core"
+version = "0.1.0"
+source = "git+https://github.com/cnwxi/epub_tool_core?tag=v0.1.0#1a4da9d41528f6f47165773b0471ecc60ba19a2b"
 dependencies = [
  "blitz-dom",
  "blitz-html",
@@ -1003,31 +1004,41 @@ dependencies = [
  "fontdue",
  "icu_properties",
  "image",
- "libc",
  "ndarray",
  "ort",
- "pbjson",
- "pbjson-build",
  "percent-encoding",
  "png 0.18.1",
- "prost",
- "prost-build",
- "protoc-bin-vendored",
  "rand",
  "regex",
  "serde",
  "serde_json",
  "sha1",
  "stylo",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
  "ttf-parser",
  "webp",
- "window-vibrancy",
  "woff",
  "write-fonts",
  "zip",
+]
+
+[[package]]
+name = "epub_tool_newui"
+version = "26.8.11"
+dependencies = [
+ "epub_tool_core",
+ "libc",
+ "pbjson",
+ "pbjson-build",
+ "percent-encoding",
+ "prost",
+ "prost-build",
+ "protoc-bin-vendored",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "window-vibrancy",
 ]
 
 [[package]]

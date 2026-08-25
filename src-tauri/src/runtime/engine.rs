@@ -3,7 +3,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::task_types::{TaskEvent, TaskResult, TaskSpec};
+use super::RuntimeResources;
+use epub_tool_core::{EngineConfig, EngineError, TaskEvent, TaskReporter, TaskResult, TaskSpec};
 use serde::Serialize;
 
 pub struct ExecutionRequest {
@@ -39,21 +40,34 @@ pub trait EngineRuntime: Send + Sync {
     fn status(&self) -> Result<EngineStatus, String>;
 }
 
-pub fn create() -> Arc<dyn EngineRuntime> {
-    Arc::new(InProcessRuntime::new())
+pub fn create(resources: RuntimeResources) -> Arc<dyn EngineRuntime> {
+    Arc::new(InProcessRuntime::new(resources))
 }
 
 struct InProcessRuntime {
     execution: Mutex<()>,
     status: Mutex<EngineStatus>,
+    resources: RuntimeResources,
 }
 
 impl InProcessRuntime {
-    fn new() -> Self {
+    fn new(resources: RuntimeResources) -> Self {
         Self {
             execution: Mutex::new(()),
             status: Mutex::new(EngineStatus::default()),
+            resources,
         }
+    }
+
+    fn config(&self, log_path: PathBuf) -> EngineConfig {
+        let mut config = EngineConfig::new(log_path);
+        if let Some(directory) = &self.resources.opencc_dir {
+            config = config.with_opencc_dir(directory.clone());
+        }
+        if let Some(directory) = &self.resources.ocr_model_dir {
+            config = config.with_ocr_model_dir(directory.clone());
+        }
+        config
     }
 
     fn update_status(&self, state: &str, message: &str, last_error: Option<String>) {
@@ -76,7 +90,10 @@ impl EngineRuntime for InProcessRuntime {
             .lock()
             .map_err(|_| "进程内 Rust 引擎执行锁已损坏".to_string())?;
         self.update_status("busy", "进程内 Rust 处理引擎正在执行请求", None);
-        let result = crate::rust_backend::run(&request.task, &request.log_path, emit);
+        let config = self.config(request.log_path);
+        let reporter = EventReporter { emit };
+        let result =
+            epub_tool_core::run(request.task, config, reporter).map_err(|error| error.to_string());
         self.update_status(
             "ready",
             "进程内 Rust 处理引擎已就绪",
@@ -93,9 +110,20 @@ impl EngineRuntime for InProcessRuntime {
     }
 }
 
+struct EventReporter<'a> {
+    emit: &'a mut dyn FnMut(TaskEvent) -> Result<(), String>,
+}
+
+impl TaskReporter for EventReporter<'_> {
+    fn report(&mut self, event: TaskEvent) -> Result<(), EngineError> {
+        (self.emit)(event).map_err(EngineError::from)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{create, EngineStatus};
+    use crate::runtime::RuntimeResources;
 
     #[test]
     fn default_status_is_ready_in_process() {
@@ -107,7 +135,12 @@ mod tests {
 
     #[test]
     fn created_runtime_is_ready_without_starting_a_process() {
-        let status = create().status().unwrap();
+        let status = create(RuntimeResources {
+            opencc_dir: None,
+            ocr_model_dir: None,
+        })
+        .status()
+        .unwrap();
         assert_eq!(status.state, "ready");
     }
 }
