@@ -56,21 +56,21 @@ const sectionItems: Array<{
   label: string;
   description: string;
 }> = [
-  { key: "overview", label: "功能概览", description: "按类别选择 EPUB 处理工具" },
-  { key: "engine", label: "处理引擎", description: "查看 Rust 处理引擎状态" },
-  { key: "reformat_epub", label: "格式化", description: "重构 EPUB 目录与引用" },
-  { key: "decrypt_epub", label: "文件解密", description: "还原文件名混淆" },
-  { key: "encrypt_epub", label: "文件加密", description: "生成文件名混淆版" },
-  { key: "decrypt_font", label: "字体解密", description: "OCR 反混淆字体字形" },
-  { key: "encrypt_font", label: "字体加密", description: "混淆内嵌字体字形" },
-  { key: "image_compress", label: "图片压缩", description: "压缩内嵌图片并保留更小版本" },
-  { key: "webp_to_img", label: "WebP 转图片", description: "按透明通道转换为 JPG 或 PNG" },
-  { key: "image_to_webp", label: "图片转 WebP", description: "转换 JPG、PNG、BMP 并同步引用" },
-  { key: "replace_cover", label: "更换封面", description: "为每本 EPUB 独立指定封面" },
-  { key: "chinese_convert", label: "简繁转换", description: "简体与繁体文本双向转换" },
-  { key: "settings", label: "设置", description: "更新、偏好、日志与历史" },
-  { key: "about", label: "关于", description: "统计、能力范围与路径" },
-];
+    { key: "overview", label: "功能概览", description: "按类别选择 EPUB 处理工具" },
+    { key: "engine", label: "处理引擎", description: "查看 Rust 处理引擎状态" },
+    { key: "reformat_epub", label: "格式化", description: "重构 EPUB 目录与引用" },
+    { key: "decrypt_epub", label: "文件解密", description: "还原文件名混淆" },
+    { key: "encrypt_epub", label: "文件加密", description: "生成文件名混淆版" },
+    { key: "decrypt_font", label: "字体解密", description: "OCR 反混淆字体字形" },
+    { key: "encrypt_font", label: "字体加密", description: "混淆内嵌字体字形" },
+    { key: "image_compress", label: "图片压缩", description: "压缩内嵌图片并保留更小版本" },
+    { key: "webp_to_img", label: "WebP 转图片", description: "按透明通道转换为 JPG 或 PNG" },
+    { key: "image_to_webp", label: "图片转 WebP", description: "转换 JPG、PNG、BMP 并同步引用" },
+    { key: "replace_cover", label: "更换封面", description: "为每本 EPUB 独立指定封面" },
+    { key: "chinese_convert", label: "简繁转换", description: "简体与繁体文本双向转换" },
+    { key: "settings", label: "设置", description: "更新、偏好、日志与历史" },
+    { key: "about", label: "关于", description: "统计、能力范围与路径" },
+  ];
 const taskSections: TaskType[] = [
   "reformat_epub",
   "decrypt_epub",
@@ -96,27 +96,27 @@ const overviewTaskGroups: Array<{
   description: string;
   taskTypes: TaskType[];
 }> = [
-  {
-    label: "文件处理",
-    description: "整理 EPUB 结构，或处理文件名与资源引用混淆。",
-    taskTypes: ["reformat_epub", "decrypt_epub", "encrypt_epub"],
-  },
-  {
-    label: "字体处理",
-    description: "按 EPUB 内嵌字体范围执行字形混淆或 OCR 还原。",
-    taskTypes: ["decrypt_font", "encrypt_font"],
-  },
-  {
-    label: "资源处理",
-    description: "压缩、转换 EPUB 图片，或逐本更换封面并同步引用。",
-    taskTypes: ["image_compress", "webp_to_img", "image_to_webp", "replace_cover"],
-  },
-  {
-    label: "文本处理",
-    description: "在不改变资源路径和文档结构的前提下转换可见中文文本。",
-    taskTypes: ["chinese_convert"],
-  },
-];
+    {
+      label: "文件处理",
+      description: "整理 EPUB 结构，或处理文件名与资源引用混淆。",
+      taskTypes: ["reformat_epub", "decrypt_epub", "encrypt_epub"],
+    },
+    {
+      label: "字体处理",
+      description: "按 EPUB 内嵌字体范围执行字形混淆或 OCR 还原。",
+      taskTypes: ["decrypt_font", "encrypt_font"],
+    },
+    {
+      label: "资源处理",
+      description: "压缩、转换 EPUB 图片，或逐本更换封面并同步引用。",
+      taskTypes: ["image_compress", "webp_to_img", "image_to_webp", "replace_cover"],
+    },
+    {
+      label: "文本处理",
+      description: "在不改变资源路径和文档结构的前提下转换可见中文文本。",
+      taskTypes: ["chinese_convert"],
+    },
+  ];
 const overviewGroups = computed(() =>
   overviewTaskGroups.map((group) => ({
     ...group,
@@ -141,26 +141,26 @@ const ocrCharPolicyOptions: Array<{
   label: string;
   description: string;
 }> = [
-  {
-    value: "strict",
-    label: "严格模式（默认）",
-    description: "适合本工具生成的字体混淆",
-  },
-  {
-    value: "compatible",
-    label: "兼容外部混淆",
-    description: "放宽目标字体命中的字符筛选",
-  },
-];
+    {
+      value: "strict",
+      label: "严格模式（默认）",
+      description: "适合本工具生成的字体混淆",
+    },
+    {
+      value: "compatible",
+      label: "兼容外部混淆",
+      description: "放宽目标字体命中的字符筛选",
+    },
+  ];
 const ocrCharPolicies = ocrCharPolicyOptions.map((option) => option.value);
 const chineseDirectionOptions: Array<{
   value: NewTaskSettings["chineseDirection"];
   label: string;
   description: string;
 }> = [
-  { value: "s2t", label: "简体 → 繁体", description: "将可见简体中文转换为繁体" },
-  { value: "t2s", label: "繁体 → 简体", description: "将可见繁体中文转换为简体" },
-];
+    { value: "s2t", label: "简体 → 繁体", description: "将可见简体中文转换为繁体" },
+    { value: "t2s", label: "繁体 → 简体", description: "将可见繁体中文转换为简体" },
+  ];
 const FRONTEND_MIN_OCR_CONFIDENCE = 0;
 const FRONTEND_MAX_OCR_CONFIDENCE = 1;
 const FRONTEND_OCR_CONFIDENCE_STEP = 0.05;
@@ -216,8 +216,8 @@ const createOutputDirectoryMap = (): TaskOutputDirectoryMap => createTaskRecord(
 
 const CURRENT_FALLBACK_VERSION = __APP_VERSION__;
 const APP_IDENTIFIER = "com.cnwxi.epubtool.newui";
-const RELEASES_API_URL = "https://api.github.com/repos/cnwxi/epub_tool/releases/latest";
-const LATEST_RELEASE_URL = "https://github.com/cnwxi/epub_tool/releases/latest";
+const RELEASES_API_URL = "https://api.github.com/repos/cnwxi/epub_tool_rust/releases/latest";
+const LATEST_RELEASE_URL = "https://github.com/cnwxi/epub_tool_rust/releases/latest";
 const UPDATE_CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000;
 const defaultUpdateCheckState: UpdateCheckState = {
   checkedAt: "",
@@ -437,9 +437,9 @@ const normalizeUpdateCheckState = (value: unknown): UpdateCheckState => {
         : LATEST_RELEASE_URL,
     status:
       raw.status === "checking" ||
-      raw.status === "available" ||
-      raw.status === "latest" ||
-      raw.status === "error"
+        raw.status === "available" ||
+        raw.status === "latest" ||
+        raw.status === "error"
         ? raw.status
         : "idle",
     message:
@@ -1903,9 +1903,11 @@ const buildRequest = (): TaskRequest => {
     };
   } else if (activeTask.value === "replace_cover") {
     runTask.options = {
-      replaceCover: { coverPathByFile: Object.fromEntries(
-        files.value.filter((item) => item.coverPath).map((item) => [item.path, item.coverPath]),
-      ) },
+      replaceCover: {
+        coverPathByFile: Object.fromEntries(
+          files.value.filter((item) => item.coverPath).map((item) => [item.path, item.coverPath]),
+        )
+      },
     };
   }
 
@@ -2007,7 +2009,7 @@ const formatTaskType = (taskType: TaskType): string => {
       return "图片压缩";
     case "image_to_webp":
       return "图片转 WebP";
-        case "replace_cover":
+    case "replace_cover":
       return "更换封面";
     case "chinese_convert":
       return "简繁转换";
@@ -2541,23 +2543,14 @@ activeSection.value = normalizeSectionKey(activeSection.value);
     <div class="side-nav-frame">
       <div ref="sideNavShellRef" class="side-nav-shell">
         <div ref="sideNavContentRef">
-          <SideNav
-            :active="activeSection"
-            :items="sectionItems"
-            :brand-easter-active="brandEasterActive"
+          <SideNav :active="activeSection" :items="sectionItems" :brand-easter-active="brandEasterActive"
             :handle-brand-easter-click="handleBrandEasterClick"
-            :trigger-brand-easter-animation="triggerBrandEasterAnimation"
-            :engine-status="engineStatus"
-            :engine-status-label="engineStatusLabel"
-            @select="activeSection = $event"
-          />
+            :trigger-brand-easter-animation="triggerBrandEasterAnimation" :engine-status="engineStatus"
+            :engine-status-label="engineStatusLabel" @select="activeSection = $event" />
         </div>
       </div>
-      <div
-        ref="sideNavScrollbarTrackRef"
-        class="custom-scrollbar custom-scrollbar-side"
-        :class="{ visible: sideNavScrollbarVisible }"
-        aria-hidden="true">
+      <div ref="sideNavScrollbarTrackRef" class="custom-scrollbar custom-scrollbar-side"
+        :class="{ visible: sideNavScrollbarVisible }" aria-hidden="true">
         <div class="custom-scrollbar-thumb" :style="{
           height: `${sideNavScrollbarThumbHeight}px`,
           transform: `translateY(${sideNavScrollbarThumbTop}px)`,
@@ -2656,8 +2649,8 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                 </div>
               </div>
               <div class="overview-card-grid">
-                <button v-for="item in group.items" :key="item.key" class="overview-task-card glass-soft"
-                  type="button" @click="activeSection = item.key">
+                <button v-for="item in group.items" :key="item.key" class="overview-task-card glass-soft" type="button"
+                  @click="activeSection = item.key">
                   <strong>{{ item.label }}</strong>
                   <span>{{ item.description }}</span>
                 </button>
@@ -2706,7 +2699,8 @@ activeSection.value = normalizeSectionKey(activeSection.value);
 
                       <div v-if="activeTask === 'image_compress'" class="font-advanced-options glass-soft">
                         <label class="font-setting-field font-slider-field">
-                          <span class="font-slider-head"><span>JPEG 质量</span><strong>{{ newTaskSettings.jpegQuality }}</strong></span>
+                          <span class="font-slider-head"><span>JPEG 质量</span><strong>{{ newTaskSettings.jpegQuality
+                              }}</strong></span>
                           <span class="font-slider-control" :style="qualitySliderStyle(newTaskSettings.jpegQuality)">
                             <span class="font-slider-track" aria-hidden="true">
                               <span class="font-slider-fill"></span>
@@ -2717,7 +2711,8 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                           </span>
                         </label>
                         <label class="font-setting-field font-slider-field">
-                          <span class="font-slider-head"><span>WebP 质量</span><strong>{{ newTaskSettings.webpQuality }}</strong></span>
+                          <span class="font-slider-head"><span>WebP 质量</span><strong>{{ newTaskSettings.webpQuality
+                              }}</strong></span>
                           <span class="font-slider-control" :style="qualitySliderStyle(newTaskSettings.webpQuality)">
                             <span class="font-slider-track" aria-hidden="true">
                               <span class="font-slider-fill"></span>
@@ -2746,8 +2741,10 @@ activeSection.value = normalizeSectionKey(activeSection.value);
 
                       <div v-else-if="activeTask === 'webp_to_img'" class="font-advanced-options glass-soft">
                         <label class="font-setting-field font-slider-field">
-                          <span class="font-slider-head"><span>JPEG 质量</span><strong>{{ newTaskSettings.webpToImageQuality }}</strong></span>
-                          <span class="font-slider-control" :style="qualitySliderStyle(newTaskSettings.webpToImageQuality)">
+                          <span class="font-slider-head"><span>JPEG 质量</span><strong>{{
+                              newTaskSettings.webpToImageQuality }}</strong></span>
+                          <span class="font-slider-control"
+                            :style="qualitySliderStyle(newTaskSettings.webpToImageQuality)">
                             <span class="font-slider-track" aria-hidden="true">
                               <span class="font-slider-fill"></span>
                             </span>
@@ -2768,8 +2765,10 @@ activeSection.value = normalizeSectionKey(activeSection.value);
 
                       <div v-else-if="activeTask === 'image_to_webp'" class="font-advanced-options glass-soft">
                         <label class="font-setting-field font-slider-field">
-                          <span class="font-slider-head"><span>WebP 质量</span><strong>{{ newTaskSettings.imageWebpQuality }}</strong></span>
-                          <span class="font-slider-control" :style="qualitySliderStyle(newTaskSettings.imageWebpQuality)">
+                          <span class="font-slider-head"><span>WebP 质量</span><strong>{{ newTaskSettings.imageWebpQuality
+                              }}</strong></span>
+                          <span class="font-slider-control"
+                            :style="qualitySliderStyle(newTaskSettings.imageWebpQuality)">
                             <span class="font-slider-track" aria-hidden="true">
                               <span class="font-slider-fill"></span>
                             </span>
@@ -2781,8 +2780,7 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                         <p class="muted">兼容性提示：EPUB 2 与旧版阅读器可能无法显示 WebP。</p>
                       </div>
 
-                      <div v-else-if="activeTask === 'chinese_convert'"
-                        class="font-advanced-options glass-soft">
+                      <div v-else-if="activeTask === 'chinese_convert'" class="font-advanced-options glass-soft">
                         <div class="font-setting-field">
                           <span id="chinese-direction-label">转换方向</span>
                           <div ref="chineseDirectionMenuRef" class="font-select"
@@ -2800,8 +2798,8 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                               <button v-for="option in chineseDirectionOptions" :key="option.value"
                                 :aria-selected="option.value === newTaskSettings.chineseDirection"
                                 class="font-select-option"
-                                :class="{ selected: option.value === newTaskSettings.chineseDirection }"
-                                role="option" type="button" @click="selectChineseDirection(option.value)">
+                                :class="{ selected: option.value === newTaskSettings.chineseDirection }" role="option"
+                                type="button" @click="selectChineseDirection(option.value)">
                                 <span class="font-select-option-copy">
                                   <strong>{{ option.label }}</strong>
                                   <small>{{ option.description }}</small>
@@ -2826,15 +2824,14 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                         </p>
                       </div>
 
-                      <p v-if="activeTask === 'decrypt_font' && !platformCapabilities.supportsFontOcr"
-                        class="muted">
+                      <p v-if="activeTask === 'decrypt_font' && !platformCapabilities.supportsFontOcr" class="muted">
                         当前平台尚未接入 ONNX Runtime，字体 OCR 解密暂不可用。
                       </p>
                       <button class="primary-btn wide"
                         :disabled="taskRunning || fontLoading || files.length === 0 || (activeTask === 'decrypt_font' && !platformCapabilities.supportsFontOcr)"
-                        type="button"
-                        @click="runSelectedTask">
-                        {{ taskRunning ? "处理中..." : (activeTask === "decrypt_font" && !platformCapabilities.supportsFontOcr
+                        type="button" @click="runSelectedTask">
+                        {{ taskRunning ? "处理中..." : (activeTask === "decrypt_font" &&
+                          !platformCapabilities.supportsFontOcr
                           ? "当前平台不可用" : "开始执行") }}
                       </button>
                     </div>
@@ -2862,8 +2859,7 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                       <div class="font-setting-grid">
                         <div class="font-setting-field">
                           <span id="ocr-policy-label">OCR 字符范围</span>
-                          <div ref="ocrPolicyMenuRef" class="font-select"
-                            :class="{ open: ocrPolicyMenuOpen }">
+                          <div ref="ocrPolicyMenuRef" class="font-select" :class="{ open: ocrPolicyMenuOpen }">
                             <button aria-haspopup="listbox" :aria-expanded="ocrPolicyMenuOpen"
                               aria-labelledby="ocr-policy-label" class="font-select-trigger" type="button"
                               @click="toggleOcrPolicyMenu" @keydown.down.prevent="ocrPolicyMenuOpen = true"
@@ -2871,13 +2867,13 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                               <span>{{ selectedOcrCharPolicyOption.label }}</span>
                               <span class="font-select-chevron" aria-hidden="true"></span>
                             </button>
-                            <div v-if="ocrPolicyMenuOpen" aria-labelledby="ocr-policy-label"
-                              class="font-select-menu" role="listbox">
+                            <div v-if="ocrPolicyMenuOpen" aria-labelledby="ocr-policy-label" class="font-select-menu"
+                              role="listbox">
                               <button v-for="option in ocrCharPolicyOptions" :key="option.value"
                                 :aria-selected="option.value === fontDecryptSettings.ocrCharPolicy"
                                 class="font-select-option"
-                                :class="{ selected: option.value === fontDecryptSettings.ocrCharPolicy }"
-                                role="option" type="button" @click="selectOcrPolicy(option.value)">
+                                :class="{ selected: option.value === fontDecryptSettings.ocrCharPolicy }" role="option"
+                                type="button" @click="selectOcrPolicy(option.value)">
                                 <span class="font-select-option-copy">
                                   <strong>{{ option.label }}</strong>
                                   <small>{{ option.description }}</small>
@@ -2896,11 +2892,11 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                             <span class="font-slider-track" aria-hidden="true">
                               <span class="font-slider-fill"></span>
                             </span>
-                            <input v-model.number="fontDecryptSettings.minOcrConfidence"
-                              aria-label="OCR置信度阈值" :aria-valuetext="formattedMinOcrConfidence"
-                              :max="FRONTEND_MAX_OCR_CONFIDENCE" :min="FRONTEND_MIN_OCR_CONFIDENCE"
-                              :step="FRONTEND_OCR_CONFIDENCE_STEP" class="font-confidence-slider"
-                              type="range" @change="normalizeFontDecryptSettingsInPlace" />
+                            <input v-model.number="fontDecryptSettings.minOcrConfidence" aria-label="OCR置信度阈值"
+                              :aria-valuetext="formattedMinOcrConfidence" :max="FRONTEND_MAX_OCR_CONFIDENCE"
+                              :min="FRONTEND_MIN_OCR_CONFIDENCE" :step="FRONTEND_OCR_CONFIDENCE_STEP"
+                              class="font-confidence-slider" type="range"
+                              @change="normalizeFontDecryptSettingsInPlace" />
                           </span>
                         </label>
                       </div>
@@ -3333,9 +3329,7 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                 </span>
               </div>
               <div class="about-path-grid about-path-grid-compact">
-                <div
-                  v-for="item in defaultPersistedStorePaths"
-                  :key="item.platform"
+                <div v-for="item in defaultPersistedStorePaths" :key="item.platform"
                   class="about-path-card glass-medium">
                   <strong>{{ item.platform }}</strong>
                   <p>{{ item.path }}</p>
@@ -3345,11 +3339,8 @@ activeSection.value = normalizeSectionKey(activeSection.value);
           </section>
         </main>
       </div>
-      <div
-        ref="workspaceScrollbarTrackRef"
-        class="custom-scrollbar custom-scrollbar-workspace"
-        :class="{ visible: workspaceScrollbarVisible }"
-        aria-hidden="true">
+      <div ref="workspaceScrollbarTrackRef" class="custom-scrollbar custom-scrollbar-workspace"
+        :class="{ visible: workspaceScrollbarVisible }" aria-hidden="true">
         <div class="custom-scrollbar-thumb" :style="{
           height: `${workspaceScrollbarThumbHeight}px`,
           transform: `translateY(${workspaceScrollbarThumbTop}px)`,
