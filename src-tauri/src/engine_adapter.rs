@@ -271,4 +271,30 @@ mod tests {
         });
         assert!(task_spec(&valid).is_ok());
     }
+
+    #[test]
+    fn serializes_empty_task_result_collections_and_zero_summary_counts() {
+        let result = WireTaskResult {
+            ok: true,
+            status: "success".to_string(),
+            outputs: Vec::new(),
+            errors: Vec::new(),
+            skipped: Vec::new(),
+            summary: Some(WireTaskSummary {
+                total: 1,
+                success: 1,
+                failed: 0,
+                skipped: 0,
+            }),
+            log_path: Some("task.log".to_string()),
+        };
+
+        let value = serde_json::to_value(result).expect("task result should serialize");
+
+        assert_eq!(value["outputs"], serde_json::json!([]));
+        assert_eq!(value["errors"], serde_json::json!([]));
+        assert_eq!(value["skipped"], serde_json::json!([]));
+        assert_eq!(value["summary"]["failed"], serde_json::json!(0));
+        assert_eq!(value["summary"]["skipped"], serde_json::json!(0));
+    }
 }

@@ -8,6 +8,7 @@ import DropZone from "./components/DropZone.vue";
 import SideNav from "./components/SideNav.vue";
 import { usePersistentState } from "./composables/usePersistentState";
 import { useTaskBridge } from "./composables/useTaskBridge";
+import { normalizeTaskResult } from "./types";
 import type {
   AppSettings,
   FontDecryptSettings,
@@ -37,6 +38,23 @@ type MasonryCard = {
 };
 
 type WireTaskType = NonNullable<NonNullable<TaskRequest["runTask"]>["taskType"]>;
+
+type TaskRunContext = {
+  requestId: string;
+  taskType: TaskType;
+};
+
+type QueuedTaskEvent = {
+  context: TaskRunContext;
+  event: TaskEvent;
+};
+
+type FontLoadState = {
+  active: boolean;
+  current: number;
+  total: number;
+  fileName: string;
+};
 
 const wireTaskTypeByTask: Record<TaskType, WireTaskType> = {
   reformat_epub: "TASK_TYPE_REFORMAT_EPUB",
@@ -534,7 +552,8 @@ const taskResultByType = ref<Record<TaskType, TaskResult | null>>(
 );
 const progress = ref(0);
 const taskRunning = ref(false);
-const runningTaskType = ref<TaskType | null>(null);
+const runningTaskContext = ref<TaskRunContext | null>(null);
+const runningTaskType = computed(() => runningTaskContext.value?.taskType ?? null);
 const taskStatus = ref("待命");
 const engineStatus = ref<EngineStatus>({
   state: "starting",
@@ -543,15 +562,22 @@ const engineStatus = ref<EngineStatus>({
 });
 let engineStatusTimer = 0;
 let engineStatusRefreshInFlight = false;
-const fontLoading = ref(false);
 const taskProgressCurrent = ref(0);
 const taskProgressTotal = ref(0);
 const taskProgressFileName = ref("");
-const fontProgressCurrent = ref(0);
-const fontProgressTotal = ref(0);
-const fontProgressFileName = ref("");
-let fontLoadRequestId = 0;
-let fontLoadInFlight: Promise<void> | null = null;
+const fontLoadByTask = ref<Record<TaskType, FontLoadState>>(
+  createTaskRecord(() => ({
+    active: false,
+    current: 0,
+    total: 0,
+    fileName: "",
+  })),
+);
+const fontLoadRequestIdByTask = createTaskRecord(() => 0);
+const fontLoadInFlightByTask = new Map<TaskType, Promise<void>>();
+const TASK_LOG_LIMIT = 300;
+const pendingTaskEvents: QueuedTaskEvent[] = [];
+let taskEventFlushFrame = 0;
 const currentVersion = ref(CURRENT_FALLBACK_VERSION);
 const latestVersion = ref(persistedUpdateCheckState.value.latestVersion);
 const latestReleaseUrl = ref(
@@ -618,9 +644,31 @@ const sideNavScrollbarThumbTop = ref(0);
 
 let masonryResizeObserver: ResizeObserver | null = null;
 let customScrollbarResizeObserver: ResizeObserver | null = null;
+let masonryMeasurementFrame = 0;
 let customScrollbarAnimationFrame = 0;
+const SCROLLBAR_AUTO_HIDE_DELAY = 500;
+let customScrollbarHideTimer: number | null = null;
+
+const clearScrollbarHideTimer = () => {
+  if (customScrollbarHideTimer !== null && typeof window !== "undefined") {
+    window.clearTimeout(customScrollbarHideTimer);
+  }
+  customScrollbarHideTimer = null;
+};
+
+const scheduleScrollbarHide = () => {
+  if (typeof window === "undefined") {
+    return;
+  }
+  clearScrollbarHideTimer();
+  customScrollbarHideTimer = window.setTimeout(() => {
+    customScrollbarHideTimer = null;
+    workspaceScrollbarVisible.value = false;
+    sideNavScrollbarVisible.value = false;
+  }, SCROLLBAR_AUTO_HIDE_DELAY);
+};
 const handleMasonryWindowResize = () => {
-  void measureMasonryBoard();
+  scheduleMasonryBoardMeasurement();
 };
 const observeMasonryBoard = () => {
   if (!masonryResizeObserver) {
@@ -631,10 +679,24 @@ const observeMasonryBoard = () => {
     masonryResizeObserver.observe(masonryBoardRef.value);
   }
 };
-const measureMasonryBoard = async () => {
-  await nextTick();
-  observeMasonryBoard();
-  masonryBoardWidth.value = masonryBoardRef.value?.clientWidth ?? 0;
+const measureMasonryBoard = () => {
+  const width = masonryBoardRef.value?.clientWidth ?? 0;
+  if (masonryBoardWidth.value !== width) {
+    masonryBoardWidth.value = width;
+  }
+};
+const scheduleMasonryBoardMeasurement = () => {
+  if (typeof window === "undefined") {
+    measureMasonryBoard();
+    return;
+  }
+  if (masonryMeasurementFrame) {
+    return;
+  }
+  masonryMeasurementFrame = window.requestAnimationFrame(() => {
+    masonryMeasurementFrame = 0;
+    measureMasonryBoard();
+  });
 };
 
 const clampScrollbarThumb = (value: number, min: number, max: number) =>
@@ -646,11 +708,18 @@ const updateCustomScrollbar = (
   thumbHeightRef: { value: number },
   thumbTopRef: { value: number },
   visibleRef: { value: boolean },
+  fromScroll = false,
 ) => {
   if (!element || typeof window === "undefined") {
-    thumbHeightRef.value = 0;
-    thumbTopRef.value = 0;
-    visibleRef.value = false;
+    if (thumbHeightRef.value !== 0) {
+      thumbHeightRef.value = 0;
+    }
+    if (thumbTopRef.value !== 0) {
+      thumbTopRef.value = 0;
+    }
+    if (visibleRef.value) {
+      visibleRef.value = false;
+    }
     return;
   }
 
@@ -659,9 +728,15 @@ const updateCustomScrollbar = (
   const overflow = scrollHeight - clientHeight;
 
   if (overflow <= 1 || clientHeight <= 0 || trackHeight <= 0) {
-    thumbHeightRef.value = 0;
-    thumbTopRef.value = 0;
-    visibleRef.value = false;
+    if (thumbHeightRef.value !== 0) {
+      thumbHeightRef.value = 0;
+    }
+    if (thumbTopRef.value !== 0) {
+      thumbTopRef.value = 0;
+    }
+    if (visibleRef.value) {
+      visibleRef.value = false;
+    }
     return;
   }
 
@@ -670,29 +745,46 @@ const updateCustomScrollbar = (
   const maxThumbTravel = Math.max(trackHeight - thumbHeight, 0);
   const scrollRatio = Math.min(Math.max(scrollTop / Math.max(overflow, 1), 0), 1);
   const thumbTop = maxThumbTravel * scrollRatio;
-  thumbHeightRef.value = thumbHeight;
-  thumbTopRef.value = thumbTop;
-  visibleRef.value = true;
+  if (thumbHeightRef.value !== thumbHeight) {
+    thumbHeightRef.value = thumbHeight;
+  }
+  if (thumbTopRef.value !== thumbTop) {
+    thumbTopRef.value = thumbTop;
+  }
+  if (fromScroll) {
+    visibleRef.value = true;
+    scheduleScrollbarHide();
+  }
 };
 
-const updateWorkspaceScrollbar = () => {
+const updateWorkspaceScrollbar = (fromScroll = false) => {
   updateCustomScrollbar(
     workspaceRef.value,
     workspaceScrollbarTrackRef.value,
     workspaceScrollbarThumbHeight,
     workspaceScrollbarThumbTop,
     workspaceScrollbarVisible,
+    fromScroll,
   );
 };
 
-const updateSideNavScrollbar = () => {
+const updateSideNavScrollbar = (fromScroll = false) => {
   updateCustomScrollbar(
     sideNavShellRef.value,
     sideNavScrollbarTrackRef.value,
     sideNavScrollbarThumbHeight,
     sideNavScrollbarThumbTop,
     sideNavScrollbarVisible,
+    fromScroll,
   );
+};
+
+const handleSideNavScroll = () => {
+  updateSideNavScrollbar(true);
+};
+
+const handleWorkspaceScroll = () => {
+  updateWorkspaceScrollbar(true);
 };
 
 const updateAllCustomScrollbars = () => {
@@ -706,7 +798,7 @@ const scheduleCustomScrollbarUpdate = () => {
     return;
   }
   if (customScrollbarAnimationFrame) {
-    window.cancelAnimationFrame(customScrollbarAnimationFrame);
+    return;
   }
   customScrollbarAnimationFrame = window.requestAnimationFrame(() => {
     customScrollbarAnimationFrame = 0;
@@ -868,7 +960,10 @@ const logs = computed<TaskEvent[]>({
   },
 });
 const result = computed<TaskResult | null>({
-  get: () => (activeTask.value ? taskResultByType.value[activeTask.value] : null),
+  get: () =>
+    normalizeTaskResult(
+      activeTask.value ? taskResultByType.value[activeTask.value] : null,
+    ),
   set: (value) => {
     if (activeTask.value) {
       taskResultByType.value[activeTask.value] = value;
@@ -1114,7 +1209,13 @@ const animateAboutDashboard = () => {
   aboutAnimationFrame = window.requestAnimationFrame(step);
 };
 const isViewingRunningTask = computed(
-  () => taskRunning.value && !!activeTask.value && activeTask.value === runningTaskType.value,
+  () => taskRunning.value && activeTask.value === runningTaskType.value,
+);
+const isViewingFontLoad = computed(
+  () => !!activeTask.value && fontLoadByTask.value[activeTask.value].active,
+);
+const activeFontLoadState = computed<FontLoadState | null>(() =>
+  activeTask.value ? fontLoadByTask.value[activeTask.value] : null,
 );
 
 const activeTitle = computed(() => {
@@ -1179,8 +1280,9 @@ const visibleProgressValue = computed(() => {
     return Math.max(0, Math.min(100, progress.value));
   }
 
-  if (fontLoading.value && fontProgressTotal.value > 0) {
-    return Math.round((fontProgressCurrent.value / fontProgressTotal.value) * 100);
+  if (isViewingFontLoad.value && (activeFontLoadState.value?.total ?? 0) > 0) {
+    const fontLoad = activeFontLoadState.value;
+    return Math.round(((fontLoad?.current ?? 0) / (fontLoad?.total ?? 1)) * 100);
   }
 
   return 0;
@@ -1193,8 +1295,9 @@ const visibleProgressText = computed(() => {
     return `已完成 ${taskProgressCurrent.value}/${taskProgressTotal.value} 本`;
   }
 
-  if (fontLoading.value && fontProgressTotal.value > 0) {
-    return `已完成 ${fontProgressCurrent.value}/${fontProgressTotal.value} 本`;
+  if (isViewingFontLoad.value && (activeFontLoadState.value?.total ?? 0) > 0) {
+    const fontLoad = activeFontLoadState.value;
+    return `已完成 ${fontLoad?.current ?? 0}/${fontLoad?.total ?? 0} 本`;
   }
 
   return "";
@@ -1205,8 +1308,8 @@ const visibleProgressMessage = computed(() => {
     return `当前处理：${taskProgressFileName.value}`;
   }
 
-  if (fontLoading.value && fontProgressFileName.value) {
-    return `当前读取：${fontProgressFileName.value}`;
+  if (isViewingFontLoad.value && activeFontLoadState.value?.fileName) {
+    return `当前读取：${activeFontLoadState.value.fileName}`;
   }
 
   return "";
@@ -1519,12 +1622,12 @@ const queuePaths = (paths: string[]) => {
     ensureSelectedFile(firstQueuedPath);
   }
 
-  if (isFontTargetTask(activeSection.value) && addedPaths.length > 0) {
-    void nextTick(async () => {
-      await loadFontFamilies({
-        filePaths: addedPaths,
-        silent: true,
-      });
+  const targetTaskType = activeTask.value;
+  if (targetTaskType && isFontTargetTask(targetTaskType) && addedPaths.length > 0) {
+    void loadFontFamilies({
+      taskType: targetTaskType,
+      filePaths: addedPaths,
+      silent: true,
     });
   }
 };
@@ -1668,18 +1771,25 @@ const loadFontFamilies = async (options?: {
   force?: boolean;
   filePaths?: string[];
   silent?: boolean;
+  taskType?: TaskType;
 }) => {
   if (!isTauriRuntime()) {
     return;
   }
 
-  while (fontLoadInFlight) {
-    await fontLoadInFlight;
+  const targetTaskType = options?.taskType ?? activeTask.value;
+  if (!targetTaskType || !isFontTargetTask(targetTaskType)) {
+    return;
+  }
+
+  const inFlight = fontLoadInFlightByTask.get(targetTaskType);
+  if (inFlight) {
+    await inFlight;
   }
 
   const targets = options?.filePaths?.length
-    ? files.value.filter((item) => options.filePaths?.includes(item.path))
-    : files.value;
+    ? taskFilesByType.value[targetTaskType].filter((item) => options.filePaths?.includes(item.path))
+    : taskFilesByType.value[targetTaskType];
   const pendingTargets = options?.force
     ? targets
     : targets.filter((item) => item.fontLoadStatus !== "loaded");
@@ -1691,13 +1801,14 @@ const loadFontFamilies = async (options?: {
   const currentFontLoad = new Promise<void>((resolve) => {
     releaseFontLoad = resolve;
   });
-  fontLoadInFlight = currentFontLoad;
+  fontLoadInFlightByTask.set(targetTaskType, currentFontLoad);
 
-  const requestId = ++fontLoadRequestId;
-  fontLoading.value = true;
-  fontProgressCurrent.value = 0;
-  fontProgressTotal.value = pendingTargets.length;
-  fontProgressFileName.value = "";
+  const requestId = ++fontLoadRequestIdByTask[targetTaskType];
+  const loadState = fontLoadByTask.value[targetTaskType];
+  loadState.active = true;
+  loadState.current = 0;
+  loadState.total = pendingTargets.length;
+  loadState.fileName = "";
   let refreshedCount = 0;
   let emptyCount = 0;
   let errorCount = 0;
@@ -1709,7 +1820,10 @@ const loadFontFamilies = async (options?: {
   const completedPaths = new Set<string>();
 
   const applyResult = (result: FontTargetResult) => {
-    if (requestId !== fontLoadRequestId || completedPaths.has(result.inputFile)) {
+    if (
+      requestId !== fontLoadRequestIdByTask[targetTaskType]
+      || completedPaths.has(result.inputFile)
+    ) {
       return;
     }
 
@@ -1737,7 +1851,7 @@ const loadFontFamilies = async (options?: {
     }
 
     completedCount += 1;
-    fontProgressCurrent.value = completedCount;
+    loadState.current = completedCount;
   };
 
   try {
@@ -1745,12 +1859,12 @@ const loadFontFamilies = async (options?: {
       item.fontLoadStatus = "loading";
       item.fontLoadError = "";
     }
-    fontProgressFileName.value = pendingTargets[0]?.name ?? "";
+    loadState.fileName = pendingTargets[0]?.name ?? "";
 
     const response = await listFontTargetsBatch(
       pendingTargets.map((item) => item.path),
       (event) => {
-        if (requestId !== fontLoadRequestId) {
+        if (requestId !== fontLoadRequestIdByTask[targetTaskType]) {
           return;
         }
         const progress = event.fontScanProgress;
@@ -1758,12 +1872,12 @@ const loadFontFamilies = async (options?: {
           return;
         }
         const item = pendingByPath.get(progress.result.inputFile);
-        fontProgressFileName.value = item?.name ?? fontProgressFileName.value;
+        loadState.fileName = item?.name ?? loadState.fileName;
         applyResult(progress.result);
       },
     );
 
-    if (requestId !== fontLoadRequestId) {
+    if (requestId !== fontLoadRequestIdByTask[targetTaskType]) {
       return;
     }
     if (response.error) {
@@ -1778,7 +1892,7 @@ const loadFontFamilies = async (options?: {
       applyResult(result);
     }
   } catch (error) {
-    if (requestId === fontLoadRequestId) {
+    if (requestId === fontLoadRequestIdByTask[targetTaskType]) {
       const message = toErrorMessage(error, "读取字体列表失败，请重试。");
       for (const item of pendingTargets) {
         if (completedPaths.has(item.path)) {
@@ -1792,26 +1906,26 @@ const loadFontFamilies = async (options?: {
         errorCount += 1;
         completedCount += 1;
       }
-      fontProgressCurrent.value = completedCount;
+      loadState.current = completedCount;
     }
   } finally {
-    if (requestId === fontLoadRequestId) {
-      fontLoading.value = false;
-      fontProgressCurrent.value = 0;
-      fontProgressTotal.value = 0;
-      fontProgressFileName.value = "";
+    if (requestId === fontLoadRequestIdByTask[targetTaskType]) {
+      loadState.active = false;
+      loadState.current = 0;
+      loadState.total = 0;
+      loadState.fileName = "";
     }
-    if (fontLoadInFlight === currentFontLoad) {
-      fontLoadInFlight = null;
+    if (fontLoadInFlightByTask.get(targetTaskType) === currentFontLoad) {
+      fontLoadInFlightByTask.delete(targetTaskType);
     }
     releaseFontLoad();
   }
 
-  if (requestId !== fontLoadRequestId) {
+  if (requestId !== fontLoadRequestIdByTask[targetTaskType]) {
     return;
   }
 
-  if (options?.silent) {
+  if (options?.silent || activeTask.value !== targetTaskType) {
     return;
   }
 
@@ -1833,15 +1947,12 @@ const loadFontFamilies = async (options?: {
   taskStatus.value = `字体列表已刷新，共更新 ${refreshedCount} 本文件。`;
 };
 
-const buildRequest = (): TaskRequest => {
-  if (!activeTask.value) {
-    throw new Error("当前页面不是任务工具页，无法构建执行请求。");
-  }
-  const requestId = crypto.randomUUID();
+const buildRequest = (taskType: TaskType, requestId: string): TaskRequest => {
+  const taskFiles = taskFilesByType.value[taskType];
   const runTask: NonNullable<TaskRequest["runTask"]> = {
     taskId: requestId,
-    taskType: wireTaskTypeByTask[activeTask.value],
-    inputFiles: files.value.map((item) => item.path),
+    taskType: wireTaskTypeByTask[taskType],
+    inputFiles: taskFiles.map((item) => item.path),
     options: { empty: {} },
   };
   const request: TaskRequest = {
@@ -1849,27 +1960,27 @@ const buildRequest = (): TaskRequest => {
     requestId,
     runTask,
   };
-  if (outputDir.value) {
-    runTask.outputDir = outputDir.value;
+  if (outputDirs.value[taskType]) {
+    runTask.outputDir = outputDirs.value[taskType];
   }
 
-  if (isFontTargetTask(activeTask.value)) {
+  if (isFontTargetTask(taskType)) {
     runTask.options = {
       font: {
         targetFontFamiliesByFile: Object.fromEntries(
-          files.value.map((item) => [item.path, { values: item.selectedFontFamilies }]),
+          taskFiles.map((item) => [item.path, { values: item.selectedFontFamilies }]),
         ),
       },
     };
   }
 
-  if (activeTask.value === "decrypt_font") {
+  if (taskType === "decrypt_font") {
     const normalizedSettings = normalizeFontDecryptSettings(fontDecryptSettings.value);
     fontDecryptSettings.value = normalizedSettings;
     runTask.options = {
       font: {
         targetFontFamiliesByFile: Object.fromEntries(
-          files.value.map((item) => [item.path, { values: item.selectedFontFamilies }]),
+          taskFiles.map((item) => [item.path, { values: item.selectedFontFamilies }]),
         ),
         ocrCharPolicy: normalizedSettings.ocrCharPolicy,
         minOcrConfidence: normalizedSettings.minOcrConfidence,
@@ -1877,7 +1988,7 @@ const buildRequest = (): TaskRequest => {
     };
   }
 
-  if (activeTask.value === "image_compress") {
+  if (taskType === "image_compress") {
     runTask.options = {
       imageCompress: {
         jpegQuality: Math.round(newTaskSettings.value.jpegQuality),
@@ -1886,27 +1997,27 @@ const buildRequest = (): TaskRequest => {
         pngQuantize: newTaskSettings.value.imageCompressQuantizePng,
       },
     };
-  } else if (activeTask.value === "webp_to_img") {
+  } else if (taskType === "webp_to_img") {
     runTask.options = {
       imageConversion: {
         quality: Math.round(newTaskSettings.value.webpToImageQuality),
         pngQuantize: newTaskSettings.value.webpToImageQuantizePng,
       },
     };
-  } else if (activeTask.value === "image_to_webp") {
+  } else if (taskType === "image_to_webp") {
     runTask.options = {
       imageConversion: { quality: Math.round(newTaskSettings.value.imageWebpQuality) },
     };
-  } else if (activeTask.value === "chinese_convert") {
+  } else if (taskType === "chinese_convert") {
     runTask.options = {
       chineseConvert: { direction: newTaskSettings.value.chineseDirection },
     };
-  } else if (activeTask.value === "replace_cover") {
+  } else if (taskType === "replace_cover") {
     runTask.options = {
       replaceCover: {
         coverPathByFile: Object.fromEntries(
-          files.value.filter((item) => item.coverPath).map((item) => [item.path, item.coverPath]),
-        )
+          taskFiles.filter((item) => item.coverPath).map((item) => [item.path, item.coverPath]),
+        ),
       },
     };
   }
@@ -2093,87 +2204,179 @@ const maybeOpenFollowUpTargets = (taskResult: TaskResult) => {
   }
 };
 
-const pushLog = (event: TaskEvent) => {
-  const targetTaskType = runningTaskType.value;
-  if (targetTaskType) {
-    taskLogsByType.value[targetTaskType] = [...taskLogsByType.value[targetTaskType], event].slice(
-      -300,
-    );
-  }
-  progress.value = event.progress;
-  taskStatus.value = event.message;
-  if (event.event === "task.started") {
-    taskProgressCurrent.value = 0;
-  } else if (event.event === "task.file.started") {
-    taskProgressCurrent.value = Math.max((event.currentIndex ?? 1) - 1, 0);
-  } else if (event.event === "task.file.finished") {
-    taskProgressCurrent.value = event.currentIndex ?? taskProgressCurrent.value;
-  } else if (event.event === "task.finished") {
-    taskProgressCurrent.value =
-      event.result?.summary.total ?? event.totalFiles ?? taskProgressCurrent.value;
-  }
-  taskProgressTotal.value = event.totalFiles ?? taskProgressTotal.value;
-  taskProgressFileName.value = event.currentFile
-    ? event.currentFile.split(/[\\/]/).pop() ?? event.currentFile
-    : taskProgressFileName.value;
-  if (targetTaskType && event.event === "task.file.finished" && event.currentFile) {
-    const currentResult =
-      taskResultByType.value[targetTaskType] ??
-      createRunningTaskResult(event.totalFiles ?? taskProgressTotal.value);
-    const nextResult: TaskResult = {
-      ...currentResult,
-      outputs: [...currentResult.outputs],
-      errors: [...currentResult.errors],
-      skipped: [...currentResult.skipped],
-      summary: { ...currentResult.summary },
-    };
+const isCurrentTaskRun = (context: TaskRunContext) => {
+  const activeRun = runningTaskContext.value;
+  return activeRun?.requestId === context.requestId && activeRun.taskType === context.taskType;
+};
 
-    if (event.status === "success") {
-      nextResult.summary.success += 1;
-      if (event.outputPath) {
-        nextResult.outputs.push(event.outputPath);
+const applyTaskEventBatch = (context: TaskRunContext, events: TaskEvent[]) => {
+  if (!isCurrentTaskRun(context) || events.length === 0) {
+    return;
+  }
+
+  const taskType = context.taskType;
+  taskLogsByType.value[taskType] = [
+    ...taskLogsByType.value[taskType],
+    ...events,
+  ].slice(-TASK_LOG_LIMIT);
+
+  let nextProgress = progress.value;
+  let nextStatus = taskStatus.value;
+  let nextProgressCurrent = taskProgressCurrent.value;
+  let nextProgressTotal = taskProgressTotal.value;
+  let nextProgressFileName = taskProgressFileName.value;
+  let nextResult = taskResultByType.value[taskType];
+  let mutableResult: TaskResult | null = null;
+  const finishedFiles: Array<{ path: string; keepInQueue: boolean }> = [];
+
+  const currentResult = (): TaskResult => {
+    if (mutableResult) {
+      return mutableResult;
+    }
+
+    const baseResult =
+      nextResult ?? createRunningTaskResult(nextProgressTotal);
+    mutableResult = {
+      ...baseResult,
+      outputs: [...baseResult.outputs],
+      errors: [...baseResult.errors],
+      skipped: [...baseResult.skipped],
+      summary: { ...baseResult.summary },
+    };
+    nextResult = mutableResult;
+    return mutableResult;
+  };
+
+  for (const event of events) {
+    nextProgress = event.progress;
+    nextStatus = event.message;
+    if (event.event === "task.started") {
+      nextProgressCurrent = 0;
+    } else if (event.event === "task.file.started") {
+      nextProgressCurrent = Math.max((event.currentIndex ?? 1) - 1, 0);
+    } else if (event.event === "task.file.finished") {
+      nextProgressCurrent = event.currentIndex ?? nextProgressCurrent;
+    } else if (event.event === "task.finished") {
+      nextProgressCurrent = event.result?.summary.total ?? event.totalFiles ?? nextProgressCurrent;
+    }
+    nextProgressTotal = event.totalFiles ?? nextProgressTotal;
+    if (event.currentFile) {
+      nextProgressFileName = event.currentFile.split(/[\\/]/).pop() ?? event.currentFile;
+    }
+
+    if (event.event === "task.file.finished" && event.currentFile) {
+      const taskResult = currentResult();
+      if (event.status === "success") {
+        taskResult.summary.success += 1;
+        if (event.outputPath) {
+          taskResult.outputs.push(event.outputPath);
+        }
+      } else if (event.status === "skip") {
+        taskResult.summary.skipped += 1;
+        taskResult.skipped.push({
+          inputFile: event.currentFile,
+          message: event.message,
+        });
+      } else if (event.status === "error") {
+        taskResult.summary.failed += 1;
+        taskResult.errors.push({
+          inputFile: event.currentFile,
+          message: event.message,
+        });
       }
-    } else if (event.status === "skip") {
-      nextResult.summary.skipped += 1;
-      nextResult.skipped.push({
-        inputFile: event.currentFile,
-        message: event.message,
-      });
-    } else if (event.status === "error") {
-      nextResult.summary.failed += 1;
-      nextResult.errors.push({
-        inputFile: event.currentFile,
-        message: event.message,
+      finishedFiles.push({
+        path: event.currentFile,
+        keepInQueue: event.status === "error",
       });
     }
 
-    taskResultByType.value[targetTaskType] = nextResult;
-    syncTaskQueueWithFinishedFile(
-      targetTaskType,
-      event.currentFile,
-      event.status === "error",
-    );
+    if (event.result) {
+      nextResult = event.result;
+      mutableResult = null;
+    }
   }
-  if (targetTaskType && event.result) {
-    taskResultByType.value[targetTaskType] = event.result;
+
+  progress.value = nextProgress;
+  taskStatus.value = nextStatus;
+  taskProgressCurrent.value = nextProgressCurrent;
+  taskProgressTotal.value = nextProgressTotal;
+  taskProgressFileName.value = nextProgressFileName;
+  taskResultByType.value[taskType] = nextResult;
+  for (const finishedFile of finishedFiles) {
+    syncTaskQueueWithFinishedFile(taskType, finishedFile.path, finishedFile.keepInQueue);
   }
 };
 
-const runSelectedTask = async () => {
-  if (files.value.length === 0 || taskRunning.value || fontLoading.value || !activeTask.value) {
+const flushTaskEvents = () => {
+  if (taskEventFlushFrame && typeof window !== "undefined") {
+    window.cancelAnimationFrame(taskEventFlushFrame);
+    taskEventFlushFrame = 0;
+  }
+
+  const queuedEvents = pendingTaskEvents.splice(0);
+  const batches = new Map<string, { context: TaskRunContext; events: TaskEvent[] }>();
+  for (const queuedEvent of queuedEvents) {
+    const batch = batches.get(queuedEvent.context.requestId);
+    if (batch) {
+      batch.events.push(queuedEvent.event);
+      continue;
+    }
+    batches.set(queuedEvent.context.requestId, {
+      context: queuedEvent.context,
+      events: [queuedEvent.event],
+    });
+  }
+
+  for (const batch of batches.values()) {
+    applyTaskEventBatch(batch.context, batch.events);
+  }
+};
+
+const enqueueTaskEvent = (
+  context: TaskRunContext,
+  eventRequestId: string,
+  event: TaskEvent,
+) => {
+  if (!isCurrentTaskRun(context) || eventRequestId !== context.requestId) {
     return;
   }
+
+  pendingTaskEvents.push({ context, event });
+  if (taskEventFlushFrame || typeof window === "undefined") {
+    if (typeof window === "undefined") {
+      flushTaskEvents();
+    }
+    return;
+  }
+
+  taskEventFlushFrame = window.requestAnimationFrame(() => {
+    taskEventFlushFrame = 0;
+    flushTaskEvents();
+  });
+};
+
+const runSelectedTask = async () => {
   const taskType = activeTask.value;
+  if (
+    !taskType
+    || taskFilesByType.value[taskType].length === 0
+    || taskRunning.value
+  ) {
+    return;
+  }
+
+  const totalFiles = taskFilesByType.value[taskType].length;
   if (taskType === "decrypt_font" && !platformCapabilities.value.supportsFontOcr) {
     taskStatus.value = "当前平台尚未接入 ONNX Runtime，暂不支持字体 OCR 解密";
     return;
   }
-  if (outputDir.value && isTauriRuntime()) {
-    const configuredOutputDir = outputDir.value;
+
+  const configuredOutputDir = outputDirs.value[taskType];
+  if (configuredOutputDir && isTauriRuntime()) {
     try {
       await validateOutputDirectory(configuredOutputDir);
     } catch (error) {
-      outputDir.value = "";
+      outputDirs.value[taskType] = "";
       const reason = toErrorMessage(error, "输出目录不可用。");
       const message = `输出目录不可用：${configuredOutputDir}；${reason} 已恢复为默认输出目录（源文件同级目录）。`;
       taskLogsByType.value[taskType] = [
@@ -2183,7 +2386,7 @@ const runSelectedTask = async () => {
           status: "error",
           progress: 0,
           message,
-          totalFiles: files.value.length,
+          totalFiles,
           level: "error",
         },
       ];
@@ -2191,27 +2394,33 @@ const runSelectedTask = async () => {
       return;
     }
   }
+
   if (isFontTargetTask(taskType)) {
     taskStatus.value = "正在读取字体列表…";
-    await loadFontFamilies();
+    await loadFontFamilies({ taskType });
   }
 
+  const context: TaskRunContext = {
+    requestId: crypto.randomUUID(),
+    taskType,
+  };
   taskRunning.value = true;
-  runningTaskType.value = taskType;
+  runningTaskContext.value = context;
   progress.value = 0;
   taskProgressCurrent.value = 0;
-  taskProgressTotal.value = files.value.length;
+  taskProgressTotal.value = totalFiles;
   taskProgressFileName.value = "";
   taskLogsByType.value[taskType] = [];
-  taskResultByType.value[taskType] = createRunningTaskResult(files.value.length);
-  const request = buildRequest();
+  taskResultByType.value[taskType] = createRunningTaskResult(totalFiles);
 
   try {
+    const request = buildRequest(taskType, context.requestId);
     const response = await runTask(request, (event) => {
       if (event.taskEvent) {
-        pushLog(event.taskEvent);
+        enqueueTaskEvent(context, event.requestId, event.taskEvent);
       }
     });
+    flushTaskEvents();
     if (response.error) {
       throw new Error(response.error.message);
     }
@@ -2224,23 +2433,32 @@ const runSelectedTask = async () => {
     rememberTask(taskType, taskResult);
     maybeOpenFollowUpTargets(taskResult);
     taskStatus.value = taskResult.ok ? "任务完成" : "任务结束，但存在失败项";
+    await nextTick();
+    scheduleCustomScrollbarUpdate();
   } catch (error) {
+    flushTaskEvents();
     const message = toErrorMessage(error, "执行过程中出现未知错误");
-    logs.value.push({
-      event: "task.bridge.error",
-      taskId: "local",
-      status: "error",
-      progress: progress.value,
-      message,
-      level: "error",
-    });
+    taskLogsByType.value[taskType] = [
+      ...taskLogsByType.value[taskType],
+      {
+        event: "task.bridge.error",
+        taskId: context.requestId,
+        status: "error",
+        progress: progress.value,
+        message,
+        level: "error",
+      },
+    ].slice(-TASK_LOG_LIMIT);
     taskStatus.value = message;
   } finally {
-    taskRunning.value = false;
-    runningTaskType.value = null;
-    taskProgressCurrent.value = 0;
-    taskProgressTotal.value = 0;
-    taskProgressFileName.value = "";
+    flushTaskEvents();
+    if (isCurrentTaskRun(context)) {
+      taskRunning.value = false;
+      runningTaskContext.value = null;
+      taskProgressCurrent.value = 0;
+      taskProgressTotal.value = 0;
+      taskProgressFileName.value = "";
+    }
   }
 };
 
@@ -2278,28 +2496,37 @@ const toggleFontFamily = (filePath: string, family: string) => {
   }
 };
 
-watch(activeSection, async (section) => {
-  activeSection.value = normalizeSectionKey(section);
-  if (activeSection.value === "overview") {
+watch(activeSection, (section) => {
+  const normalizedSection = normalizeSectionKey(section);
+  if (section !== normalizedSection) {
+    activeSection.value = normalizedSection;
+    return;
+  }
+
+  if (normalizedSection === "overview") {
     animateAboutDashboard();
   }
-  if (isFontTargetTask(activeSection.value) && files.value.length > 0) {
-    await loadFontFamilies({
-      filePaths: files.value
-        .filter((item) => item.fontLoadStatus !== "loaded")
-        .map((item) => item.path),
-      silent: true,
-    });
+
+  if (isFontTargetTask(normalizedSection)) {
+    const taskType = normalizedSection;
+    const pendingFilePaths = taskFilesByType.value[taskType]
+      .filter((item) => item.fontLoadStatus !== "loaded")
+      .map((item) => item.path);
+    if (pendingFilePaths.length > 0) {
+      void loadFontFamilies({
+        taskType,
+        filePaths: pendingFilePaths,
+        silent: true,
+      });
+    }
   }
-  await measureMasonryBoard();
+
+  scheduleMasonryBoardMeasurement();
 }, { flush: "post" });
 
-watch(activeTask, async () => {
-  await measureMasonryBoard();
-}, { flush: "post" });
-
-watch(() => masonryBoardRef.value, async () => {
-  await measureMasonryBoard();
+watch(() => masonryBoardRef.value, () => {
+  observeMasonryBoard();
+  scheduleMasonryBoardMeasurement();
 }, { flush: "post" });
 
 watch(() => workspaceRef.value, async () => {
@@ -2342,12 +2569,12 @@ watch(
 );
 
 watch(
-  () => [logs.value.length, result.value, activeSection.value, activeTask.value],
+  () => [logs.value.length, activeSection.value, activeTask.value],
   async () => {
     await nextTick();
     scheduleCustomScrollbarUpdate();
   },
-  { deep: true },
+  { flush: "post" },
 );
 
 watch(
@@ -2390,7 +2617,7 @@ onMounted(async () => {
 
     if (typeof ResizeObserver !== "undefined") {
       masonryResizeObserver = new ResizeObserver(() => {
-        void measureMasonryBoard();
+        scheduleMasonryBoardMeasurement();
       });
       window.addEventListener("resize", handleMasonryWindowResize);
       removeMasonryResizeListener = () => {
@@ -2420,8 +2647,8 @@ onMounted(async () => {
     }
   }
 
-  sideNavShellRef.value?.addEventListener("scroll", updateSideNavScrollbar, { passive: true });
-  workspaceRef.value?.addEventListener("scroll", updateWorkspaceScrollbar, { passive: true });
+  sideNavShellRef.value?.addEventListener("scroll", handleSideNavScroll, { passive: true });
+  workspaceRef.value?.addEventListener("scroll", handleWorkspaceScroll, { passive: true });
   if (customScrollbarResizeObserver) {
     if (sideNavShellRef.value) {
       customScrollbarResizeObserver.observe(sideNavShellRef.value);
@@ -2434,12 +2661,6 @@ onMounted(async () => {
     }
     if (workspaceContentRef.value) {
       customScrollbarResizeObserver.observe(workspaceContentRef.value);
-    }
-    if (sideNavScrollbarTrackRef.value) {
-      customScrollbarResizeObserver.observe(sideNavScrollbarTrackRef.value);
-    }
-    if (workspaceScrollbarTrackRef.value) {
-      customScrollbarResizeObserver.observe(workspaceScrollbarTrackRef.value);
     }
   }
   aboutAnimatedStats.value = { ...aboutStats.value };
@@ -2478,8 +2699,9 @@ onMounted(async () => {
   }
 
   if (!isTauriRuntime()) {
-    await measureMasonryBoard();
     await nextTick();
+    observeMasonryBoard();
+    scheduleMasonryBoardMeasurement();
     scheduleCustomScrollbarUpdate();
     return;
   }
@@ -2500,8 +2722,9 @@ onMounted(async () => {
     dragActive.value = false;
   });
   await nextTick();
+  observeMasonryBoard();
+  scheduleMasonryBoardMeasurement();
   scheduleCustomScrollbarUpdate();
-  await measureMasonryBoard();
 });
 
 onBeforeUnmount(() => {
@@ -2513,17 +2736,27 @@ onBeforeUnmount(() => {
   if (aboutAnimationFrame && typeof window !== "undefined") {
     window.cancelAnimationFrame(aboutAnimationFrame);
   }
+  if (masonryMeasurementFrame && typeof window !== "undefined") {
+    window.cancelAnimationFrame(masonryMeasurementFrame);
+    masonryMeasurementFrame = 0;
+  }
   if (customScrollbarAnimationFrame && typeof window !== "undefined") {
     window.cancelAnimationFrame(customScrollbarAnimationFrame);
     customScrollbarAnimationFrame = 0;
   }
+  if (taskEventFlushFrame && typeof window !== "undefined") {
+    window.cancelAnimationFrame(taskEventFlushFrame);
+    taskEventFlushFrame = 0;
+  }
+  pendingTaskEvents.length = 0;
   removeMasonryResizeListener?.();
   removeCustomScrollbarResizeListener?.();
   if (typeof document !== "undefined") {
     document.removeEventListener("pointerdown", handleOcrPolicyOutsidePointerDown);
   }
-  sideNavShellRef.value?.removeEventListener("scroll", updateSideNavScrollbar);
-  workspaceRef.value?.removeEventListener("scroll", updateWorkspaceScrollbar);
+  sideNavShellRef.value?.removeEventListener("scroll", handleSideNavScroll);
+  workspaceRef.value?.removeEventListener("scroll", handleWorkspaceScroll);
+  clearScrollbarHideTimer();
   customScrollbarResizeObserver?.disconnect();
   customScrollbarResizeObserver = null;
   unlistenDrop?.();
@@ -2700,7 +2933,7 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                       <div v-if="activeTask === 'image_compress'" class="font-advanced-options glass-soft">
                         <label class="font-setting-field font-slider-field">
                           <span class="font-slider-head"><span>JPEG 质量</span><strong>{{ newTaskSettings.jpegQuality
-                              }}</strong></span>
+                          }}</strong></span>
                           <span class="font-slider-control" :style="qualitySliderStyle(newTaskSettings.jpegQuality)">
                             <span class="font-slider-track" aria-hidden="true">
                               <span class="font-slider-fill"></span>
@@ -2712,7 +2945,7 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                         </label>
                         <label class="font-setting-field font-slider-field">
                           <span class="font-slider-head"><span>WebP 质量</span><strong>{{ newTaskSettings.webpQuality
-                              }}</strong></span>
+                          }}</strong></span>
                           <span class="font-slider-control" :style="qualitySliderStyle(newTaskSettings.webpQuality)">
                             <span class="font-slider-track" aria-hidden="true">
                               <span class="font-slider-fill"></span>
@@ -2742,7 +2975,7 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                       <div v-else-if="activeTask === 'webp_to_img'" class="font-advanced-options glass-soft">
                         <label class="font-setting-field font-slider-field">
                           <span class="font-slider-head"><span>JPEG 质量</span><strong>{{
-                              newTaskSettings.webpToImageQuality }}</strong></span>
+                            newTaskSettings.webpToImageQuality }}</strong></span>
                           <span class="font-slider-control"
                             :style="qualitySliderStyle(newTaskSettings.webpToImageQuality)">
                             <span class="font-slider-track" aria-hidden="true">
@@ -2766,7 +2999,7 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                       <div v-else-if="activeTask === 'image_to_webp'" class="font-advanced-options glass-soft">
                         <label class="font-setting-field font-slider-field">
                           <span class="font-slider-head"><span>WebP 质量</span><strong>{{ newTaskSettings.imageWebpQuality
-                              }}</strong></span>
+                          }}</strong></span>
                           <span class="font-slider-control"
                             :style="qualitySliderStyle(newTaskSettings.imageWebpQuality)">
                             <span class="font-slider-track" aria-hidden="true">
@@ -2811,7 +3044,7 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                         </div>
                       </div>
 
-                      <div v-if="taskRunning || fontLoading" class="task-progress glass-soft">
+                      <div v-if="isViewingRunningTask || isViewingFontLoad" class="task-progress glass-soft">
                         <div class="task-progress-head">
                           <strong class="content-animated-value">{{ visibleProgressText }}</strong>
                           <span class="content-animated-value">{{ formattedVisibleProgress }}%</span>
@@ -2828,11 +3061,12 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                         当前平台尚未接入 ONNX Runtime，字体 OCR 解密暂不可用。
                       </p>
                       <button class="primary-btn wide"
-                        :disabled="taskRunning || fontLoading || files.length === 0 || (activeTask === 'decrypt_font' && !platformCapabilities.supportsFontOcr)"
+                        :disabled="taskRunning || isViewingFontLoad || files.length === 0 || (activeTask === 'decrypt_font' && !platformCapabilities.supportsFontOcr)"
                         type="button" @click="runSelectedTask">
-                        {{ taskRunning ? "处理中..." : (activeTask === "decrypt_font" &&
+                        {{ taskRunning ? (isViewingRunningTask ? "处理中..." : "其他任务处理中...") : (isViewingFontLoad
+                          ? "正在读取字体..." : (activeTask === "decrypt_font" &&
                           !platformCapabilities.supportsFontOcr
-                          ? "当前平台不可用" : "开始执行") }}
+                          ? "当前平台不可用" : "开始执行")) }}
                       </button>
                     </div>
                   </article>
@@ -2849,9 +3083,9 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                         </p>
                       </div>
                       <div class="panel-actions">
-                        <button class="ghost-btn task-action-btn" :disabled="fontLoading || files.length === 0"
+                        <button class="ghost-btn task-action-btn" :disabled="isViewingFontLoad || files.length === 0"
                           type="button" @click="loadFontFamilies({ force: true })">
-                          {{ fontLoading ? "刷新中..." : "刷新字体列表" }}
+                          {{ isViewingFontLoad ? "刷新中..." : "刷新字体列表" }}
                         </button>
                       </div>
                     </div>
@@ -2999,30 +3233,30 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                     <div v-else class="result-block">
                       <div class="result-metrics">
                         <div class="result-metric-card total">
-                          <strong class="content-animated-value">{{ result.summary.total }}</strong>
+                          <strong class="content-animated-value">{{ result?.summary?.total ?? 0 }}</strong>
                           <span>总文件</span>
                         </div>
                         <div class="result-metric-card success">
-                          <strong class="content-animated-value">{{ result.summary.success }}</strong>
+                          <strong class="content-animated-value">{{ result?.summary?.success ?? 0 }}</strong>
                           <span>成功</span>
                         </div>
                         <div class="result-metric-card error">
-                          <strong class="content-animated-value">{{ result.summary.failed }}</strong>
+                          <strong class="content-animated-value">{{ result?.summary?.failed ?? 0 }}</strong>
                           <span>失败</span>
                         </div>
                         <div class="result-metric-card skip">
-                          <strong class="content-animated-value">{{ result.summary.skipped }}</strong>
+                          <strong class="content-animated-value">{{ result?.summary?.skipped ?? 0 }}</strong>
                           <span>跳过</span>
                         </div>
                       </div>
 
-                      <div v-if="result.outputs.length > 0" class="result-detail-block">
+                      <div v-if="(result?.outputs?.length ?? 0) > 0" class="result-detail-block">
                         <div class="result-detail-head">
                           <strong>成功</strong>
-                          <span class="content-animated-value">{{ result.outputs.length }} 项</span>
+                          <span class="content-animated-value">{{ result?.outputs?.length ?? 0 }} 项</span>
                         </div>
                         <div class="result-output-list">
-                          <button v-for="output in result.outputs" :key="output"
+                          <button v-for="output in result?.outputs ?? []" :key="output"
                             class="result-output-row success glass-soft" type="button"
                             @click="openOutputFolder(output)">
                             <div class="result-row-head">
@@ -3034,13 +3268,13 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                         </div>
                       </div>
 
-                      <div v-if="result.errors.length > 0" class="result-detail-block">
+                      <div v-if="(result?.errors?.length ?? 0) > 0" class="result-detail-block">
                         <div class="result-detail-head">
                           <strong>失败</strong>
-                          <span class="content-animated-value">{{ result.errors.length }} 项</span>
+                          <span class="content-animated-value">{{ result?.errors?.length ?? 0 }} 项</span>
                         </div>
                         <div class="result-detail-list">
-                          <div v-for="item in result.errors" :key="`${item.inputFile}-${item.message}`"
+                          <div v-for="item in result?.errors ?? []" :key="`${item.inputFile}-${item.message}`"
                             class="result-detail-row error glass-soft">
                             <div class="result-row-head">
                               <strong>{{ item.inputFile.split(/[\\/]/).pop() ?? item.inputFile }}</strong>
@@ -3052,13 +3286,13 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                         </div>
                       </div>
 
-                      <div v-if="result.skipped.length > 0" class="result-detail-block">
+                      <div v-if="(result?.skipped?.length ?? 0) > 0" class="result-detail-block">
                         <div class="result-detail-head">
                           <strong>跳过</strong>
-                          <span class="content-animated-value">{{ result.skipped.length }} 项</span>
+                          <span class="content-animated-value">{{ result?.skipped?.length ?? 0 }} 项</span>
                         </div>
                         <div class="result-detail-list">
-                          <div v-for="item in result.skipped" :key="`${item.inputFile}-${item.message}`"
+                          <div v-for="item in result?.skipped ?? []" :key="`${item.inputFile}-${item.message}`"
                             class="result-detail-row skip glass-soft">
                             <div class="result-row-head">
                               <strong>{{ item.inputFile.split(/[\\/]/).pop() ?? item.inputFile }}</strong>

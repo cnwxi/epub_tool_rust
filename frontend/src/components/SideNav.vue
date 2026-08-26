@@ -166,7 +166,8 @@ watch(
             type="button" @click="selectSection(overviewItem.key)">
             <span>{{ overviewItem.label }}</span>
           </button>
-          <button class="nav-item nav-engine-status" :class="`state-${props.engineStatus.state}`"
+          <button class="nav-item nav-engine-status"
+            :class="[`state-${props.engineStatus.state}`, { active: active === 'engine' }]"
             type="button" :title="`${props.engineStatusLabel}：${props.engineStatus.message}`"
             @click="selectSection('engine')">
             <span class="nav-engine-name">处理引擎</span>

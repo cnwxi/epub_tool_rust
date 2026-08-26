@@ -131,7 +131,8 @@ html,
 .app-shell {
   min-height: 100vh;
   height: 100vh;
-  background: transparent;
+  /* Keep a painted surface behind the glass layers when native transparency is unavailable. */
+  background: var(--bg-canvas);
 }
 
 button,
@@ -585,8 +586,7 @@ input {
   outline-offset: 2px;
 }
 
-.nav-item:hover,
-.nav-item.active {
+.nav-item:hover {
   transform: translateX(4px);
   border-color: rgba(255, 255, 255, 0.18);
   background: linear-gradient(145deg,
@@ -598,10 +598,17 @@ input {
     0 1px 0 rgba(255, 255, 255, 0.12) inset;
 }
 
-.nav-group-overview .nav-item:hover,
-.nav-group-overview .nav-item.active {
-  transform: none;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12) inset;
+.nav-item.active {
+  transform: translateX(4px);
+  border-color: rgba(255, 255, 255, 0.18);
+  background: linear-gradient(145deg,
+      rgba(177, 108, 47, 0.32) 0%,
+      rgba(242, 191, 94, 0.16) 44%,
+      rgba(255, 255, 255, 0.035) 100%);
+  box-shadow:
+    0 12px 24px rgba(8, 15, 28, 0.2),
+    0 1px 0 rgba(255, 255, 255, 0.16) inset,
+    0 -1px 0 rgba(102, 55, 19, 0.18) inset;
 }
 
 .nav-engine-status {
@@ -812,7 +819,7 @@ input {
   width: 8px;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 180ms ease;
+  transition: opacity 500ms ease;
   z-index: 30;
   overflow: hidden;
 }

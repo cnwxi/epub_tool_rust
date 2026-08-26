@@ -1,18 +1,36 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { shallowRef } from "vue";
 
+import { normalizeTaskResult } from "../types";
 import type {
   EngineEvent,
   EngineResponse,
   ImagePreviewResponse,
   PlatformCapabilities,
   EngineStatus,
+  TaskEvent,
   TaskRequest,
 } from "../types";
 
 const isTauriRuntime = (): boolean =>
   typeof window !== "undefined" &&
   ("__TAURI_INTERNALS__" in window || "__TAURI__" in window);
+
+const normalizeEngineEvent = (event: EngineEvent): EngineEvent => {
+  if (!event.taskEvent) {
+    return event;
+  }
+  const taskEvent: TaskEvent = {
+    ...event.taskEvent,
+    result: normalizeTaskResult(event.taskEvent.result) ?? undefined,
+  };
+  return { ...event, taskEvent };
+};
+
+const normalizeEngineResponse = (response: EngineResponse): EngineResponse => ({
+  ...response,
+  taskResult: normalizeTaskResult(response.taskResult) ?? undefined,
+});
 
 export function useTaskBridge() {
   const platformCapabilities = shallowRef<PlatformCapabilities>({
@@ -44,13 +62,14 @@ export function useTaskBridge() {
     }
 
     const channel = new Channel<EngineEvent>((event) => {
-      onEvent(event);
+      onEvent(normalizeEngineEvent(event));
     });
 
-    return invoke<EngineResponse>("run_epub_task", {
+    const response = await invoke<EngineResponse>("run_epub_task", {
       request,
       onEvent: channel,
     });
+    return normalizeEngineResponse(response);
   };
 
   const listFontTargetsBatch = async (
@@ -61,9 +80,9 @@ export function useTaskBridge() {
       throw new Error("当前环境不支持该功能，请在桌面应用中使用。");
     }
     const channel = new Channel<EngineEvent>((event) => {
-      onEvent(event);
+      onEvent(normalizeEngineEvent(event));
     });
-    return invoke<EngineResponse>("list_font_targets_batch", {
+    const response = await invoke<EngineResponse>("list_font_targets_batch", {
       request: {
         protocolVersion: "PROTOCOL_VERSION_V1",
         requestId: crypto.randomUUID(),
@@ -71,6 +90,7 @@ export function useTaskBridge() {
       },
       onEvent: channel,
     });
+    return normalizeEngineResponse(response);
   };
 
   const collectEpubFiles = async (directoryPath: string): Promise<string[]> => {

@@ -67,6 +67,51 @@ export type TaskResult = Omit<Required<TaskResultJson>, "errors" | "skipped" | "
   summary: TaskSummary;
 };
 
+const normalizeTaskCount = (value: unknown): number =>
+  typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0;
+
+const normalizeFileIssues = (value: unknown): FileIssue[] =>
+  Array.isArray(value)
+    ? value.map((item) => {
+      const raw = item && typeof item === "object" ? (item as Partial<FileIssue>) : {};
+      return {
+        inputFile: typeof raw.inputFile === "string" ? raw.inputFile : "",
+        message: typeof raw.message === "string" ? raw.message : "",
+      };
+    })
+    : [];
+
+/**
+ * Tauri IPC serializes Protobuf messages as JSON. Normalize omitted Protobuf
+ * defaults so the UI never treats a partial wire payload as a complete result.
+ */
+export const normalizeTaskResult = (
+  value: TaskResult | null | undefined,
+): TaskResult | null => {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const raw = value as Partial<TaskResult>;
+  const summary = (raw.summary ?? {}) as Partial<TaskSummary>;
+  return {
+    ok: raw.ok === true,
+    status: typeof raw.status === "string" ? raw.status : "",
+    outputs: Array.isArray(raw.outputs)
+      ? raw.outputs.filter((output): output is string => typeof output === "string")
+      : [],
+    errors: normalizeFileIssues(raw.errors),
+    skipped: normalizeFileIssues(raw.skipped),
+    summary: {
+      total: normalizeTaskCount(summary.total),
+      success: normalizeTaskCount(summary.success),
+      failed: normalizeTaskCount(summary.failed),
+      skipped: normalizeTaskCount(summary.skipped),
+    },
+    logPath: typeof raw.logPath === "string" ? raw.logPath : "",
+  };
+};
+
 export type TaskEvent = Omit<TaskEventJson, "progress" | "result"> & {
   event: string;
   taskId: string;

@@ -12,7 +12,7 @@
     "dev:desktop": "npm run dev:bundle-assets && npm run dev:frontend",
     "build:bundle-assets": "npm run build && npm run build:verify-ocr-model",
     "tauri": "tauri",
-    "tauri:dev": "tauri dev",
+    "tauri:dev": "cargo run --locked --manifest-path xtask/Cargo.toml -- desktop-dev",
     "tauri:build": "cargo run --locked --manifest-path xtask/Cargo.toml -- desktop-build"
   },
   "devDependencies": {

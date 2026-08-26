@@ -14,6 +14,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     config.compile_protos(&["../proto/epub_tool/v1/engine.proto"], &["../proto"])?;
     pbjson_build::Builder::new()
         .register_descriptors(&std::fs::read(descriptor_path)?)?
+        .emit_fields()
         .build(&[".epub_tool.v1"])?;
     tauri_build::build();
     Ok(())

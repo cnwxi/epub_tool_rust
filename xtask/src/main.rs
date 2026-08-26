@@ -29,13 +29,14 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
     };
     match command {
         "verify-ocr-model" => verify_ocr_model(arguments.get(1).map(String::as_str)),
+        "desktop-dev" => desktop_dev(&arguments[1..]),
         "desktop-build" => desktop_build(&arguments[1..]),
         _ => Err(usage()),
     }
 }
 
 fn usage() -> String {
-    "Usage:\n  cargo run --locked --manifest-path xtask/Cargo.toml -- verify-ocr-model [model-name]\n  cargo run --locked --manifest-path xtask/Cargo.toml -- desktop-build [Tauri build options]".to_string()
+    "Usage:\n  cargo run --locked --manifest-path xtask/Cargo.toml -- verify-ocr-model [model-name]\n  cargo run --locked --manifest-path xtask/Cargo.toml -- desktop-dev [Tauri dev options]\n  cargo run --locked --manifest-path xtask/Cargo.toml -- desktop-build [Tauri build options]".to_string()
 }
 
 fn repo_root() -> Result<PathBuf, String> {
@@ -100,6 +101,25 @@ fn desktop_build(arguments: &[String]) -> Result<(), String> {
         Ok(())
     } else {
         Err(format!("桌面 Tauri 构建失败: {status}"))
+    }
+}
+
+fn desktop_dev(arguments: &[String]) -> Result<(), String> {
+    let mut command = npm_command();
+    command
+        .current_dir(repo_root()?)
+        .args(["run", "tauri", "--", "dev"])
+        .args(arguments);
+    if cfg!(target_os = "macos") {
+        command.env("ORT_LIB_PATH", prepare_macos_ort()?);
+    }
+    let status = command
+        .status()
+        .map_err(|error| format!("启动桌面 Tauri 开发环境失败: {error}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("桌面 Tauri 开发环境失败: {status}"))
     }
 }
 

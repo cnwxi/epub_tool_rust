@@ -18,6 +18,8 @@ export function usePersistentState<T>(
   let saveQueue = Promise.resolve();
   let saveDebounceTimer = 0;
   let pendingSaveValue: T | undefined;
+  let stateChangedBeforeNativeLoad = false;
+  let applyingNativeValue = false;
 
   if (typeof window !== "undefined") {
     try {
@@ -38,11 +40,13 @@ export function usePersistentState<T>(
   if (typeof window !== "undefined" && isTauriRuntime()) {
     void loadPersistedState<T>(key)
       .then(({ found, value }) => {
-        if (found) {
+        if (found && !stateChangedBeforeNativeLoad) {
+          applyingNativeValue = true;
           state.value = normalizeValue(value);
+          applyingNativeValue = false;
         }
         nativeStoreReady = true;
-        if (!found) {
+        if (!found || stateChangedBeforeNativeLoad) {
           saveQueue = saveQueue
             .then(() => savePersistedState(key, state.value))
             .catch(() => undefined);
@@ -50,6 +54,11 @@ export function usePersistentState<T>(
       })
       .catch(() => {
         nativeStoreReady = true;
+        if (stateChangedBeforeNativeLoad) {
+          saveQueue = saveQueue
+            .then(() => savePersistedState(key, state.value))
+            .catch(() => undefined);
+        }
       });
   }
 
@@ -76,6 +85,9 @@ export function usePersistentState<T>(
         return;
       }
       const normalizedValue = normalizeValue(value);
+      if (!nativeStoreReady && !applyingNativeValue) {
+        stateChangedBeforeNativeLoad = true;
+      }
       window.localStorage.setItem(key, JSON.stringify(normalizedValue));
 
       if (!nativeStoreReady || !isTauriRuntime()) {
@@ -88,7 +100,7 @@ export function usePersistentState<T>(
       }
       saveDebounceTimer = window.setTimeout(flushPendingSave, SAVE_DEBOUNCE_MS);
     },
-    { deep: true },
+    { deep: true, flush: "sync" },
   );
 
   if (typeof window !== "undefined" && isTauriRuntime()) {
