@@ -10,7 +10,9 @@
   <a href="https://github.com/cnwxi/epub_tool_rust/network/members"><img src="https://img.shields.io/github/forks/cnwxi/epub_tool_rust" alt="GitHub forks"></a>
 </p>
 
-一个面向 EPUB 批量处理的桌面工具，采用 `Tauri 2 + Vue 3 + TypeScript + Rust`。Windows、macOS、Linux 均在应用进程内执行 Rust 任务核心。开发、测试、构建和发布使用 Rust/Node 工具链。文件解密/加密功能处理的是 EPUB 内文件名与资源引用混淆，不提供 DRM 内容解密。
+一个面向 EPUB 批量处理的桌面工具，采用 `Tauri 2 + Vue 3 + TypeScript + Rust`。Windows、macOS、Linux 均在应用进程内执行 Rust 任务核心。开发、测试、构建和发布使用 Rust/Node 工具链。文件解密/加密功能处理的是 EPUB 内文件名与资源引用混淆，不提供 [DRM 内容解密](https://github.com/Satsuoni/DeDRM_tools)。
+
+![Epub Tool 桌面端界面预览](./assets/img/epub_tool_newui.png)
 
 ## 相关仓库
 
@@ -18,9 +20,7 @@
 - [Epub Tool Android 端](https://github.com/cnwxi/epub_tool_android)
 - [epub_tool_core 共享 Rust 核心](https://github.com/cnwxi/epub_tool_core)
 
-![Epub Tool 桌面端界面预览](./assets/img/epub_tool_newui.png)
-
-支持的处理能力：
+## 支持的处理能力：
 
 - `reformat_epub`：重构 EPUB 目录结构、OPF 清单与资源引用，标准化文件布局
 - `decrypt_epub`：还原 EPUB 内文件名与资源引用混淆，不提供 DRM 内容解密
