@@ -133,12 +133,30 @@ jobs:
             echo "版本不一致: Cargo=$cargo_version, Tauri=$config_version" >&2
             exit 1
           fi
-          if ! grep -F "versionName='$cargo_version'" <<<"$badging"; then
-            echo "APK versionName 与 Cargo 版本 $cargo_version 不一致" >&2
+          apkanalyzer=$(find "$ANDROID_HOME/cmdline-tools" "$ANDROID_HOME/tools" -type f -name apkanalyzer 2>/dev/null | sort -V | tail -n 1 || true)
+          apk_version=""
+          if [ -n "$apkanalyzer" ] && [ -x "$apkanalyzer" ]; then
+            apk_version=$("$apkanalyzer" manifest version-name "$apk" 2>/dev/null | tr -d '\r' | sed -n '1p' || true)
+          fi
+          apk_version=$(printf '%s' "$apk_version" | sed 's/[[:space:]]*$//')
+          if [ -z "$apk_version" ]; then
+            apk_version=$(sed -n "s/^package:.*versionName='\([^']*\)'.*/\1/p" <<<"$badging" | head -n 1)
+          fi
+          if [ -z "$apk_version" ]; then
+            manifest_tree=$("$aapt2" dump xmltree "$apk" AndroidManifest.xml 2>/dev/null || true)
+            apk_version=$(sed -n 's/.*android:versionName.*="\([^"]*\)".*/\1/p' <<<"$manifest_tree" | head -n 1)
+          fi
+          if [ -z "$apk_version" ]; then
+            echo "无法从 APK 读取 versionName；aapt2 输出如下：" >&2
+            echo "$badging" >&2
             exit 1
           fi
-          if ! grep -F "application-icon-" <<<"$badging"; then
-            echo 'APK 缺少 application-icon badging 记录' >&2
+          if [ "$apk_version" != "$cargo_version" ]; then
+            echo "APK versionName=$apk_version 与 Cargo 版本 $cargo_version 不一致" >&2
+            exit 1
+          fi
+          if ! grep -Eq "application-icon-|^application:.*icon='[^']+'" <<<"$badging"; then
+            echo 'APK 缺少可用的 application icon badging 记录' >&2
             exit 1
           fi
       - name: Sign Android release APK
