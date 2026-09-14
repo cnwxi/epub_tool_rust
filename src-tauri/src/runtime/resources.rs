@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use tauri::{AppHandle, Manager};
 
+#[cfg(not(target_os = "android"))]
 use super::paths::workspace_root;
 
 #[derive(Debug, Clone)]
@@ -10,6 +11,7 @@ pub struct RuntimeResources {
     pub ocr_model_dir: Option<PathBuf>,
 }
 
+#[cfg(not(target_os = "android"))]
 pub fn prepare(app: &AppHandle) -> Result<RuntimeResources, String> {
     Ok(RuntimeResources {
         opencc_dir: resolve_opencc_dir(app),
@@ -17,6 +19,7 @@ pub fn prepare(app: &AppHandle) -> Result<RuntimeResources, String> {
     })
 }
 
+#[cfg(not(target_os = "android"))]
 fn resolve_opencc_dir(app: &AppHandle) -> Option<PathBuf> {
     workspace_root()
         .map(|root| {
@@ -33,6 +36,7 @@ fn resolve_opencc_dir(app: &AppHandle) -> Option<PathBuf> {
         .filter(|directory| directory.is_dir())
 }
 
+#[cfg(not(target_os = "android"))]
 fn resolve_ocr_model_dir(app: &AppHandle) -> Option<PathBuf> {
     if let Ok(path) = std::env::var("EPUB_TOOL_OCR_ONNX_MODEL_DIR") {
         if !path.is_empty() {
@@ -58,4 +62,87 @@ fn resolve_ocr_model_dir(app: &AppHandle) -> Option<PathBuf> {
                 .map(|directory| directory.join("ocr-models").join(model_name))
         })
         .filter(|directory| directory.is_dir())
+}
+
+#[cfg(target_os = "android")]
+use std::fs;
+#[cfg(target_os = "android")]
+const OPENCC_FILES: [&str; 7] = [
+    "NOTICE.txt",
+    "STCharacters.txt",
+    "STPhrases.txt",
+    "TSCharacters.txt",
+    "TSPhrases.txt",
+    "s2t.json",
+    "t2s.json",
+];
+
+#[cfg(target_os = "android")]
+pub fn prepare(app: &AppHandle) -> Result<RuntimeResources, String> {
+    use tauri::path::BaseDirectory;
+
+    let root = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("无法定位 Android 应用数据目录: {error}"))?
+        .join("runtime-resources");
+    let opencc_dir = root.join("opencc");
+    let version_path = root.join(".epub-tool-resource-version");
+    fs::create_dir_all(&root)
+        .map_err(|error| format!("创建 Android 资源目录失败 {}: {error}", root.display()))?;
+
+    let resources_are_current = fs::read_to_string(&version_path)
+        .map(|value| value.trim() == env!("CARGO_PKG_VERSION"))
+        .unwrap_or(false)
+        && OPENCC_FILES
+            .iter()
+            .all(|name| opencc_dir.join(name).is_file());
+
+    if !resources_are_current {
+        for name in OPENCC_FILES {
+            copy_resource(
+                app,
+                &format!("opencc/{name}"),
+                &opencc_dir.join(name),
+                BaseDirectory::Resource,
+            )?;
+        }
+        fs::write(&version_path, env!("CARGO_PKG_VERSION")).map_err(|error| {
+            format!(
+                "写入 Android 资源版本标记失败 {}: {error}",
+                version_path.display()
+            )
+        })?;
+    }
+
+    Ok(RuntimeResources {
+        opencc_dir: Some(opencc_dir),
+        ocr_model_dir: None,
+    })
+}
+
+#[cfg(target_os = "android")]
+fn copy_resource(
+    app: &AppHandle,
+    relative_path: &str,
+    destination: &std::path::Path,
+    base: tauri::path::BaseDirectory,
+) -> Result<(), String> {
+    use tauri_plugin_fs::FsExt;
+
+    let source = app
+        .path()
+        .resolve(relative_path, base)
+        .map_err(|error| format!("定位内置资源 {relative_path} 失败: {error}"))?;
+    let bytes = app
+        .fs()
+        .read(source)
+        .map_err(|error| format!("读取内置资源 {relative_path} 失败: {error}"))?;
+    let parent = destination
+        .parent()
+        .ok_or_else(|| format!("资源目标路径无父目录: {}", destination.display()))?;
+    fs::create_dir_all(parent)
+        .map_err(|error| format!("创建资源目标目录 {} 失败: {error}", parent.display()))?;
+    fs::write(destination, bytes)
+        .map_err(|error| format!("写入内置资源 {} 失败: {error}", destination.display()))
 }

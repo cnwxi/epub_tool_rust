@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { getVersion } from "@tauri-apps/api/app";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 import DropZone from "./components/DropZone.vue";
@@ -139,9 +140,10 @@ const overviewGroups = computed(() =>
   overviewTaskGroups.map((group) => ({
     ...group,
     items: group.taskTypes
+      .filter((task) => supportsTask(task))
       .map((taskType) => sectionItems.find((item) => item.key === taskType))
       .filter((item): item is (typeof sectionItems)[number] => Boolean(item)),
-  })),
+  })).filter((group) => group.items.length > 0),
 );
 
 const fontTargetTaskTypes: TaskType[] = ["encrypt_font", "decrypt_font"];
@@ -258,6 +260,9 @@ let brandEasterHideTimer = 0;
 
 const {
   collectEpubFiles,
+  exportOutput,
+  stageSourceForTask,
+  takeOpenedSources,
   getLogPath,
   getPersistedStorePath,
   getEngineStatus,
@@ -271,6 +276,13 @@ const {
   runTask,
   validateOutputDirectory,
 } = useTaskBridge();
+
+const isMobile = computed(() => platformCapabilities.value.requiresOutputExport);
+function supportsTask(task: SectionKey) {
+  return !["encrypt_font", "decrypt_font"].includes(task) || platformCapabilities.value.supportsFontOcr;
+}
+const availableSections = computed(() => sectionItems.filter((item) => supportsTask(item.key)));
+const availableTaskCount = computed(() => taskSections.filter(supportsTask).length);
 
 const hideBrandEasterAnimation = () => {
   brandEasterActive.value = false;
@@ -1254,7 +1266,7 @@ const activeTitle = computed(() => {
 const activeDescription = computed(() => {
   switch (activeSection.value) {
     case "overview":
-      return "查看累计处理统计，并按处理类别选择工具；每个任务会保留各自的文件队列与输出目录。";
+      return "查看累计处理统计，并按处理类别选择工具；每个任务会保留各自的文件队列。";
     case "engine":
       return "查看 Rust 处理引擎状态、最近错误与最近任务。";
     case "reformat_epub":
@@ -1960,7 +1972,7 @@ const buildRequest = (taskType: TaskType, requestId: string): TaskRequest => {
     requestId,
     runTask,
   };
-  if (outputDirs.value[taskType]) {
+  if (!isMobile.value && outputDirs.value[taskType]) {
     runTask.outputDir = outputDirs.value[taskType];
   }
 
@@ -2025,27 +2037,29 @@ const buildRequest = (taskType: TaskType, requestId: string): TaskRequest => {
   return request;
 };
 
-const pickCoverForFile = async (file: QueuedFile) => {
-  const selected = await open({
-    multiple: false,
-    directory: false,
-    filters: [{ name: "封面图片", extensions: ["jpg", "jpeg", "png", "webp"] }],
-  });
-  if (typeof selected === "string") {
-    try {
-      const preview = await readImagePreview(selected);
-      if (file.coverPreviewUrl) {
-        URL.revokeObjectURL(file.coverPreviewUrl);
-      }
-      file.coverPath = selected;
-      file.coverPreviewUrl = URL.createObjectURL(
-        new Blob([new Uint8Array(preview.bytes)], { type: preview.mimeType }),
-      );
-    } catch (error) {
-      taskStatus.value = toErrorMessage(error, "封面预览加载失败，请重新选择图片。");
+const pickCoverForFiles = async (targetFiles: QueuedFile[]) => {
+  if (!targetFiles.length) return;
+  try {
+    const selected = await open({
+      multiple: false,
+      directory: false,
+      filters: [{ name: "封面图片", extensions: ["jpg", "jpeg", "png", "webp"] }],
+    });
+    if (typeof selected !== "string") return;
+    const coverPath = isMobile.value ? await stageSourceForTask(selected, "cover") : selected;
+    const preview = await readImagePreview(coverPath);
+    const blob = new Blob([new Uint8Array(preview.bytes)], { type: preview.mimeType });
+    for (const file of targetFiles) {
+      if (file.coverPreviewUrl) URL.revokeObjectURL(file.coverPreviewUrl);
+      file.coverPath = coverPath;
+      file.coverPreviewUrl = URL.createObjectURL(blob);
     }
+  } catch (error) {
+    taskStatus.value = toErrorMessage(error, "封面预览加载失败，请重新选择图片。");
   }
 };
+
+const pickCoverForFile = (file: QueuedFile) => pickCoverForFiles([file]);
 
 const normalizeFontDecryptSettingsInPlace = () => {
   fontDecryptSettings.value = normalizeFontDecryptSettings(fontDecryptSettings.value);
@@ -2193,7 +2207,7 @@ const clearHistory = () => {
 };
 
 const maybeOpenFollowUpTargets = (taskResult: TaskResult) => {
-  if (!isTauriRuntime()) {
+  if (!isTauriRuntime() || !platformCapabilities.value.supportsOpenPath) {
     return;
   }
   if (settings.value.autoOpenOutputFolder && taskResult.outputs[0]) {
@@ -2366,13 +2380,13 @@ const runSelectedTask = async () => {
   }
 
   const totalFiles = taskFilesByType.value[taskType].length;
-  if (taskType === "decrypt_font" && !platformCapabilities.value.supportsFontOcr) {
-    taskStatus.value = "当前平台尚未接入 ONNX Runtime，暂不支持字体 OCR 解密";
+  if (isFontTargetTask(taskType) && !platformCapabilities.value.supportsFontOcr) {
+    taskStatus.value = "当前平台不支持字体任务";
     return;
   }
 
   const configuredOutputDir = outputDirs.value[taskType];
-  if (configuredOutputDir && isTauriRuntime()) {
+  if (!isMobile.value && configuredOutputDir && isTauriRuntime()) {
     try {
       await validateOutputDirectory(configuredOutputDir);
     } catch (error) {
@@ -2478,8 +2492,18 @@ const openPersistedStoreFile = () => {
   void openPath(currentPersistedStorePath.value);
 };
 
-const openOutputFolder = (path: string) => {
-  void openPath(getContainingDirectory(path));
+const openOutputFolder = async (path: string) => {
+  try {
+    if (!isMobile.value) {
+      await openPath(getContainingDirectory(path));
+      return;
+    }
+    const destination = await save({ defaultPath: path.split(/[\\/]/).pop() || "processed.epub", filters: [{ name: "EPUB", extensions: ["epub"] }] });
+    if (typeof destination === "string") {
+      await exportOutput(path, destination);
+      taskStatus.value = "处理结果已导出";
+    }
+  } catch (error) { taskStatus.value = toErrorMessage(error, "导出失败"); }
 };
 
 const toggleFontFamily = (filePath: string, family: string) => {
@@ -2495,6 +2519,12 @@ const toggleFontFamily = (filePath: string, family: string) => {
     target.selectedFontFamilies = [...target.selectedFontFamilies, family];
   }
 };
+
+watch(() => [activeSection.value, isMobile.value, platformCapabilities.value.supportsFontOcr], () => {
+  if (isMobile.value && !supportsTask(activeSection.value)) {
+    activeSection.value = "reformat_epub";
+  }
+}, { immediate: true });
 
 watch(activeSection, (section) => {
   const normalizedSection = normalizeSectionKey(section);
@@ -2606,6 +2636,7 @@ watch(
   { deep: true },
 );
 
+let unlistenOpened: (() => void) | null = null;
 let unlistenDrop: (() => void) | null = null;
 let removeMasonryResizeListener: (() => void) | null = null;
 let removeCustomScrollbarResizeListener: (() => void) | null = null;
@@ -2705,22 +2736,34 @@ onMounted(async () => {
     scheduleCustomScrollbarUpdate();
     return;
   }
-  unlistenDrop = await getCurrentWindow().onDragDropEvent((event) => {
-    if (!isTaskSection.value) {
+  if (isMobile.value) {
+    const drainOpened = async () => {
+      try {
+        const paths = await takeOpenedSources();
+        if (paths.length && !isTaskSection.value) activeSection.value = "reformat_epub";
+        await resolveAndQueuePaths(paths);
+      } catch (error) { taskStatus.value = toErrorMessage(error, "打开 EPUB 失败"); }
+    };
+    unlistenOpened = await listen("opened", () => { void drainOpened(); });
+    await drainOpened();
+  } else {
+    unlistenDrop = await getCurrentWindow().onDragDropEvent((event) => {
+      if (!isTaskSection.value) {
+        dragActive.value = false;
+        return;
+      }
+      if (event.payload.type === "over") {
+        dragActive.value = true;
+        return;
+      }
+      if (event.payload.type === "drop") {
+        dragActive.value = false;
+        void resolveAndQueuePaths(event.payload.paths);
+        return;
+      }
       dragActive.value = false;
-      return;
-    }
-    if (event.payload.type === "over") {
-      dragActive.value = true;
-      return;
-    }
-    if (event.payload.type === "drop") {
-      dragActive.value = false;
-      void resolveAndQueuePaths(event.payload.paths);
-      return;
-    }
-    dragActive.value = false;
-  });
+    });
+  }
   await nextTick();
   observeMasonryBoard();
   scheduleMasonryBoardMeasurement();
@@ -2760,6 +2803,7 @@ onBeforeUnmount(() => {
   customScrollbarResizeObserver?.disconnect();
   customScrollbarResizeObserver = null;
   unlistenDrop?.();
+  unlistenOpened?.();
   if (brandEasterResetTimer && typeof window !== "undefined") {
     window.clearTimeout(brandEasterResetTimer);
   }
@@ -2776,7 +2820,7 @@ activeSection.value = normalizeSectionKey(activeSection.value);
     <div class="side-nav-frame">
       <div ref="sideNavShellRef" class="side-nav-shell">
         <div ref="sideNavContentRef">
-          <SideNav :active="activeSection" :items="sectionItems" :brand-easter-active="brandEasterActive"
+          <SideNav :active="activeSection" :items="availableSections" :brand-easter-active="brandEasterActive"
             :handle-brand-easter-click="handleBrandEasterClick"
             :trigger-brand-easter-animation="triggerBrandEasterAnimation" :engine-status="engineStatus"
             :engine-status-label="engineStatusLabel" @select="activeSection = $event" />
@@ -2805,7 +2849,7 @@ activeSection.value = normalizeSectionKey(activeSection.value);
               <button class="ghost-btn" type="button" @click="dismissUpdateNotice">
                 稍后
               </button>
-              <button class="primary-btn" type="button" @click="openLatestReleasePage">
+              <button class="primary-btn" v-if="platformCapabilities.supportsOpenPath" type="button" @click="openLatestReleasePage">
                 前往下载
               </button>
             </div>
@@ -2892,7 +2936,7 @@ activeSection.value = normalizeSectionKey(activeSection.value);
           </section>
 
           <template v-if="isTaskSection">
-            <DropZone :is-active="dragActive" :file-count="files.length" @drag-state="dragActive = $event"
+            <DropZone :supports-directory-scan="platformCapabilities.supportsDirectoryScan" :is-active="dragActive" :file-count="files.length" @drag-state="dragActive = $event"
               @drop-files="handleDropZoneFiles" @pick-files="pickFiles" @scan-directory="scanInputDirectory"
               @clear="clearFiles" />
 
@@ -2909,7 +2953,7 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                         <p class="eyebrow">任务配置</p>
                         <h3>输出与执行</h3>
                       </div>
-                      <div class="panel-actions">
+                      <div v-if="platformCapabilities.supportsDirectoryPicker" class="panel-actions">
                         <button class="ghost-btn task-action-btn" type="button" @click="pickOutputDirectory">
                           选择输出目录
                         </button>
@@ -2920,7 +2964,8 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                     </div>
 
                     <div class="settings-stack">
-                      <label class="field glass-soft task-field-card">
+                      <p v-if="isMobile" class="muted">结果暂存在应用内。处理完成后，点击结果文件导出到保存位置。</p>
+                      <label v-else class="field glass-soft task-field-card">
                         <span>输出目录</span>
                         <input :value="outputDir || '默认：源文件同级目录'" readonly type="text" />
                       </label>
@@ -2928,6 +2973,11 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                       <div class="task-callout glass-soft">
                         <strong class="content-animated-value">{{ activeTaskLabel }}</strong>
                         <span class="content-animated-value">{{ activeTaskDescription }}</span>
+                      </div>
+
+                      <div v-if="activeTask === 'replace_cover'" class="panel-actions">
+                        <button class="secondary-btn" type="button" :disabled="taskRunning || !files.length"
+                          @click="pickCoverForFiles([...files])">选择统一封面</button>
                       </div>
 
                       <div v-if="activeTask === 'image_compress'" class="font-advanced-options glass-soft">
@@ -3203,7 +3253,7 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                         <h3>处理日志</h3>
                       </div>
                       <div class="panel-actions">
-                        <button class="ghost-btn task-action-btn" type="button" @click="openLogFile">
+                        <button v-if="platformCapabilities.supportsOpenPath" class="ghost-btn task-action-btn" type="button" @click="openLogFile">
                           打开处理日志
                         </button>
                         <button class="ghost-btn task-action-btn" type="button" @click="clearLogs">
@@ -3261,7 +3311,7 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                             @click="openOutputFolder(output)">
                             <div class="result-row-head">
                               <strong>{{ output.split(/[\\/]/).pop() ?? output }}</strong>
-                              <span class="result-status-tag success">成功</span>
+                              <span class="result-status-tag success">{{ isMobile ? "导出" : "成功" }}</span>
                             </div>
                             <span>{{ output }}</span>
                           </button>
@@ -3367,7 +3417,7 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                   </div>
                   <button v-if="entry.firstOutput" class="ghost-btn settings-action-btn" type="button"
                     @click="openOutputFolder(entry.firstOutput)">
-                    打开输出文件夹
+                    {{ isMobile ? "导出结果" : "打开输出文件夹" }}
                   </button>
                 </div>
               </div>
@@ -3394,7 +3444,7 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                     @click="checkForUpdates()">
                     {{ updateStatus === "checking" ? "检查中..." : "检查更新" }}
                   </button>
-                  <button class="ghost-btn settings-action-btn" type="button" @click="openLatestReleasePage">
+                  <button class="ghost-btn settings-action-btn" v-if="platformCapabilities.supportsOpenPath" type="button" @click="openLatestReleasePage">
                     下载最新版本
                   </button>
                 </div>
@@ -3426,7 +3476,7 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                 </div>
               </div>
               <div class="settings-preference-grid">
-                <label class="settings-preference-card settings-interactive-card glass-medium">
+                <label v-if="platformCapabilities.supportsOpenPath" class="settings-preference-card settings-interactive-card glass-medium">
                   <div>
                     <strong>自动打开输出文件夹</strong>
                     <p>任务完成后直接定位到输出目录。</p>
@@ -3436,7 +3486,7 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                     <span class="toggle-switch-track" aria-hidden="true"></span>
                   </span>
                 </label>
-                <label class="settings-preference-card settings-interactive-card glass-medium">
+                <label v-if="platformCapabilities.supportsOpenPath" class="settings-preference-card settings-interactive-card glass-medium">
                   <div>
                     <strong>自动打开处理日志</strong>
                     <p>便于立刻回看处理细节。</p>
@@ -3466,12 +3516,12 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                 </div>
               </div>
               <div class="settings-path-grid">
-                <button class="settings-log-card settings-path-card glass-medium" :disabled="!currentLogPath"
+                <button class="settings-log-card settings-path-card glass-medium" :disabled="!currentLogPath || !platformCapabilities.supportsOpenPath"
                   type="button" @click="currentLogPath && openPath(currentLogPath)">
                   <span>当前日志文件</span>
                   <strong>{{ currentLogPath || "暂未获取日志文件路径。" }}</strong>
                 </button>
-                <button class="settings-log-card settings-path-card glass-medium" :disabled="!currentPersistedStorePath"
+                <button class="settings-log-card settings-path-card glass-medium" :disabled="!currentPersistedStorePath || !platformCapabilities.supportsOpenPath"
                   type="button" @click="openPersistedStoreFile">
                   <span>当前设置文件</span>
                   <strong>{{ currentPersistedStorePath || "暂未获取设置文件路径。" }}</strong>
@@ -3486,22 +3536,22 @@ activeSection.value = normalizeSectionKey(activeSection.value);
               <p class="eyebrow">软件说明</p>
               <h3>Epub Tool 能做什么</h3>
               <p class="muted">
-                桌面版围绕文件导入、任务执行、结果回看、日志定位与历史统计组织工作流，所有处理能力都通过同一套任务页交互完成。
+                应用围绕文件导入、任务执行、结果回看、日志与历史统计组织工作流，所有处理能力都通过同一套任务页交互完成。
               </p>
             </section>
 
             <section class="about-summary-grid section-animated-block">
               <article class="about-summary-card glass-medium">
                 <strong>处理能力</strong>
-                <span>已启用 {{ taskSections.length }} 项 EPUB 处理任务</span>
+                <span>已启用 {{ availableTaskCount }} 项 EPUB 处理任务</span>
               </article>
               <article class="about-summary-card glass-medium">
                 <strong>统一任务视图</strong>
-                <span>拖拽导入、文件队列、处理日志与结果摘要</span>
+                <span>文件导入、任务队列、处理日志与结果摘要</span>
               </article>
               <article class="about-summary-card glass-medium">
-                <strong>独立输出记忆</strong>
-                <span>每个子功能分别保存默认输出目录</span>
+                <strong>{{ isMobile ? "结果导出" : "独立输出记忆" }}</strong>
+                <span>{{ isMobile ? "通过系统保存对话框导出处理结果" : "每个子功能分别保存默认输出目录" }}</span>
               </article>
             </section>
 
@@ -3522,10 +3572,11 @@ activeSection.value = normalizeSectionKey(activeSection.value);
             <article class="about-card glass-medium section-animated-block">
               <div class="about-card-head">
                 <p class="eyebrow">输出规则</p>
-                <h4>子功能输出目录</h4>
+                <h4>{{ isMobile ? "保存处理结果" : "子功能输出目录" }}</h4>
               </div>
-              <p class="muted">每个子功能都会独立记住上一次输出位置，未设置时默认输出到源文件同级目录。</p>
-              <div class="about-path-grid">
+              <p v-if="isMobile" class="muted">处理结果暂存在应用缓存中，请在结果区点击“导出”并选择保存位置。</p>
+              <p v-else class="muted">每个子功能都会独立记住上一次输出位置，未设置时默认输出到源文件同级目录。</p>
+              <div v-if="!isMobile" class="about-path-grid">
                 <div v-for="item in outputDirectorySummary" :key="item.taskType" class="about-path-card glass-medium">
                   <strong>{{ item.label }}</strong>
                   <p>{{ item.path }}</p>
@@ -3542,7 +3593,7 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                 <span v-if="currentLogPath">当前实际日志文件：{{ currentLogPath }}</span>
                 <span v-else>开发环境默认写入仓库根目录的 log.txt，打包版按系统平台写入应用日志目录，并可从设置页直接打开。</span>
               </div>
-              <div class="about-path-grid about-path-grid-compact">
+              <div v-if="!isMobile" class="about-path-grid about-path-grid-compact">
                 <div v-for="item in defaultLogPaths" :key="item.platform" class="about-path-card glass-medium">
                   <strong>{{ item.platform }}</strong>
                   <p>{{ item.path }}</p>

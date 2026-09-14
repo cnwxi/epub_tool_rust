@@ -15,43 +15,60 @@ pub struct PlatformCapabilities {
 
 impl PlatformCapabilities {
     pub fn current() -> Self {
-        Self {
-            platform: current_platform(),
-            runtime: "inProcess",
-            supports_directory_picker: true,
-            supports_directory_scan: true,
-            supports_open_path: true,
-            requires_output_export: false,
-            supports_file_associations: true,
-            supports_font_ocr: true,
-        }
+        Self::for_platform(std::env::consts::OS)
     }
-}
 
-fn current_platform() -> &'static str {
-    if cfg!(target_os = "macos") {
-        "macos"
-    } else if cfg!(target_os = "windows") {
-        "windows"
-    } else if cfg!(target_os = "linux") {
-        "linux"
-    } else {
-        "unknown"
+    fn for_platform(platform: &'static str) -> Self {
+        let desktop = matches!(platform, "macos" | "windows" | "linux");
+        Self {
+            platform,
+            runtime: "inProcess",
+            supports_directory_picker: desktop,
+            supports_directory_scan: desktop,
+            supports_open_path: desktop,
+            requires_output_export: platform == "android",
+            supports_file_associations: desktop,
+            supports_font_ocr: desktop,
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn android_capabilities_require_export_without_font_or_desktop_paths() {
+        let capabilities = PlatformCapabilities::for_platform("android");
+        assert_eq!(capabilities.platform, "android");
+        assert_eq!(capabilities.runtime, "inProcess");
+        assert!(capabilities.requires_output_export);
+        assert!(!capabilities.supports_directory_picker);
+        assert!(!capabilities.supports_directory_scan);
+        assert!(!capabilities.supports_open_path);
+        assert!(!capabilities.supports_font_ocr);
+    }
+
     use super::PlatformCapabilities;
 
     #[test]
-    fn desktop_capabilities_use_in_process_runtime() {
-        let capabilities = PlatformCapabilities::current();
-        assert_eq!(capabilities.runtime, "inProcess");
-        assert!(capabilities.supports_directory_picker);
-        assert!(capabilities.supports_directory_scan);
-        assert!(capabilities.supports_open_path);
-        assert!(!capabilities.requires_output_export);
-        assert!(capabilities.supports_font_ocr);
+    fn desktop_platforms_preserve_path_and_font_capabilities() {
+        for platform in ["macos", "windows", "linux"] {
+            let capabilities = PlatformCapabilities::for_platform(platform);
+            assert_eq!(capabilities.platform, platform);
+            assert_eq!(capabilities.runtime, "inProcess");
+            assert!(capabilities.supports_directory_picker);
+            assert!(capabilities.supports_directory_scan);
+            assert!(capabilities.supports_open_path);
+            assert!(capabilities.supports_file_associations);
+            assert!(!capabilities.requires_output_export);
+            assert!(capabilities.supports_font_ocr);
+        }
+    }
+
+    #[test]
+    fn current_capabilities_report_the_compiled_target() {
+        assert_eq!(
+            PlatformCapabilities::current().platform,
+            std::env::consts::OS
+        );
     }
 }

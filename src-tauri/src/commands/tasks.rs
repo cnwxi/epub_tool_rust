@@ -1,15 +1,17 @@
-use std::{
-    path::Path,
-    time::{Duration, Instant},
-};
+#[cfg(not(target_os = "android"))]
+use crate::engine_protocol::v1::{engine_response, FontScanProgress, FontScanResult};
+use std::time::{Duration, Instant};
+
+#[cfg(not(target_os = "android"))]
+use std::path::Path;
 
 use tauri::{ipc::Channel, AppHandle, State};
 
 use crate::{
     engine_adapter,
     engine_protocol::v1::{
-        engine_event, engine_request, engine_response, EngineEvent, EngineRequest, EngineResponse,
-        FontScanProgress, FontScanResult, ProtocolVersion, TaskEvent as WireTaskEvent,
+        engine_event, engine_request, EngineEvent, EngineRequest, EngineResponse, ProtocolVersion,
+        TaskEvent as WireTaskEvent,
     },
     runtime::{resolve_log_path, ExecutionRequest, RuntimeServices},
 };
@@ -90,6 +92,7 @@ fn truncate_task_log_message(message: &mut String) {
     message.push_str("…（日志过长，已截断）");
 }
 
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn list_font_targets_batch(
     request: EngineRequest,
@@ -215,4 +218,15 @@ mod tests {
 
         assert_eq!(message.chars().count(), TASK_LOG_MESSAGE_LIMIT);
     }
+}
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn list_font_targets_batch(
+    request: EngineRequest,
+    on_event: Channel<EngineEvent>,
+) -> Result<EngineResponse, String> {
+    validate_engine_request(&request)?;
+    let _ = on_event;
+    Err("Android 不支持字体扫描或 OCR".into())
 }

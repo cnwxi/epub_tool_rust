@@ -1,0 +1,33 @@
+{
+  "build": {
+    "beforeDevCommand": {
+      "cwd": "..",
+      "script": "npm run dev:mobile"
+    },
+    "beforeBuildCommand": {
+      "cwd": "..",
+      "script": "npm run build:mobile-assets"
+    }
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Epub Tool",
+        "transparent": false,
+        "decorations": true
+      }
+    ],
+    "macOSPrivateApi": true
+  },
+  "bundle": {
+    "active": true,
+    "android": {
+      "minSdkVersion": 24
+    },
+    "icon": [
+      "../assets/img/icon.png"
+    ],
+    "fileAssociations": []
+  }
+}

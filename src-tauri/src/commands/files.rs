@@ -1,3 +1,5 @@
+#[cfg(any(target_os = "android", test))]
+use std::sync::Mutex;
 use std::{fs, path::PathBuf};
 
 use serde::Serialize;
@@ -93,9 +95,81 @@ fn detect_preview_image_mime(bytes: &[u8]) -> Option<&'static str> {
     None
 }
 
+#[cfg(any(target_os = "android", test))]
+pub struct OpenedSources(Mutex<Vec<String>>);
+
+#[cfg(any(target_os = "android", test))]
+impl OpenedSources {
+    pub fn new() -> Self {
+        Self(Mutex::new(Vec::new()))
+    }
+    pub fn extend(&self, values: impl IntoIterator<Item = String>) {
+        if let Ok(mut stored) = self.0.lock() {
+            stored.extend(values);
+        }
+    }
+    fn take(&self) -> Result<Vec<String>, String> {
+        self.0
+            .lock()
+            .map(|mut values| std::mem::take(&mut *values))
+            .map_err(|_| "已打开文件列表锁已损坏".to_string())
+    }
+}
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn stage_source_for_task(
+    services: State<'_, RuntimeServices>,
+    source_path: String,
+    extension: String,
+) -> Result<String, String> {
+    let files = services.files();
+    tauri::async_runtime::spawn_blocking(move || files.stage_source(&source_path, &extension))
+        .await
+        .map_err(|e| format!("暂存文件失败: {e}"))?
+}
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn export_output(
+    services: State<'_, RuntimeServices>,
+    source_path: String,
+    destination_path: String,
+) -> Result<(), String> {
+    let files = services.files();
+    tauri::async_runtime::spawn_blocking(move || {
+        files.export_output(&source_path, &destination_path)
+    })
+    .await
+    .map_err(|e| format!("导出文件失败: {e}"))?
+}
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn take_opened_sources(state: State<'_, OpenedSources>) -> Result<Vec<String>, String> {
+    state.take()
+}
+
 #[cfg(test)]
 mod tests {
-    use super::detect_preview_image_mime;
+    use super::{detect_preview_image_mime, OpenedSources};
+
+    #[test]
+    fn opened_sources_survive_late_listener_and_are_drained_once() {
+        let sources = OpenedSources::new();
+        sources.extend(["content://provider/first.epub".into()]);
+        sources.extend(["content://provider/second.epub".into()]);
+        assert_eq!(
+            sources.take().unwrap(),
+            [
+                "content://provider/first.epub",
+                "content://provider/second.epub"
+            ]
+        );
+        assert!(sources.take().unwrap().is_empty());
+        sources.extend(["content://provider/third.epub".into()]);
+        assert_eq!(sources.take().unwrap(), ["content://provider/third.epub"]);
+    }
 
     #[test]
     fn detects_supported_preview_formats() {

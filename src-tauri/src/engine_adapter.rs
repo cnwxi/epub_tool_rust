@@ -297,4 +297,90 @@ mod tests {
         assert_eq!(value["summary"]["failed"], serde_json::json!(0));
         assert_eq!(value["summary"]["skipped"], serde_json::json!(0));
     }
+    // Encoded using the former Android v1 schema. This frozen payload guards
+    // field numbers and task IDs without depending on that repository at build time.
+    #[test]
+    fn decodes_legacy_android_cover_request_without_changing_paths_or_options() {
+        use crate::engine_protocol::v1::{engine_request, EngineRequest};
+        use prost::Message;
+        const ANDROID_REQUEST: &[u8] = &[
+            0x08, 0x01, 0x12, 0x09, 0x61, 0x6e, 0x64, 0x72, 0x6f, 0x69, 0x64, 0x2d, 0x31, 0x1a,
+            0x49, 0x0a, 0x07, 0x63, 0x6f, 0x76, 0x65, 0x72, 0x2d, 0x31, 0x10, 0x0a, 0x1a, 0x10,
+            0x2f, 0x63, 0x61, 0x63, 0x68, 0x65, 0x2f, 0x62, 0x6f, 0x6f, 0x6b, 0x2e, 0x65, 0x70,
+            0x75, 0x62, 0x2a, 0x2a, 0x32, 0x28, 0x0a, 0x26, 0x0a, 0x10, 0x2f, 0x63, 0x61, 0x63,
+            0x68, 0x65, 0x2f, 0x62, 0x6f, 0x6f, 0x6b, 0x2e, 0x65, 0x70, 0x75, 0x62, 0x12, 0x12,
+            0x2f, 0x63, 0x61, 0x63, 0x68, 0x65, 0x2f, 0x69, 0x6d, 0x61, 0x67, 0x65, 0x2e, 0x63,
+            0x6f, 0x76, 0x65, 0x72,
+        ];
+        let request = EngineRequest::decode(ANDROID_REQUEST).unwrap();
+        assert_eq!(request.protocol_version, 1);
+        assert_eq!(request.request_id, "android-1");
+        assert_eq!(request.encode_to_vec(), ANDROID_REQUEST);
+        let Some(engine_request::Operation::RunTask(wire)) = request.operation else {
+            panic!("legacy Android request must remain a run task");
+        };
+        let task = task_spec(&wire).unwrap();
+        assert_eq!(task.task_id, "cover-1");
+        assert_eq!(task.task_type, TaskType::ReplaceCover);
+        assert_eq!(task.input_files, [PathBuf::from("/cache/book.epub")]);
+        assert_eq!(task.output_dir, None);
+        assert_eq!(
+            task.options.replace_cover().unwrap().cover_path_by_file["/cache/book.epub"],
+            "/cache/image.cover"
+        );
+    }
+
+    #[test]
+    fn accepts_all_legacy_android_json_task_options() {
+        use serde_json::json;
+        for (name, number, options) in [
+            ("REFORMAT_EPUB", 1, json!({"empty": {}})),
+            ("DECRYPT_EPUB", 2, json!({"empty": {}})),
+            ("ENCRYPT_EPUB", 3, json!({"empty": {}})),
+            (
+                "WEBP_TO_IMG",
+                6,
+                json!({"imageConversion": {"quality": 82, "pngQuantize": false}}),
+            ),
+            (
+                "IMAGE_COMPRESS",
+                7,
+                json!({"imageCompress": {"jpegQuality": 82, "webpQuality": 82, "pngToJpg": false, "pngQuantize": false}}),
+            ),
+            (
+                "IMAGE_TO_WEBP",
+                8,
+                json!({"imageConversion": {"quality": 82, "pngQuantize": false}}),
+            ),
+            (
+                "CHINESE_CONVERT",
+                9,
+                json!({"chineseConvert": {"direction": "s2t"}}),
+            ),
+            (
+                "REPLACE_COVER",
+                10,
+                json!({"replaceCover": {"coverPathByFile": {"/cache/book.epub": "/cache/image.cover"}}}),
+            ),
+        ] {
+            let wire: RunTaskRequest = serde_json::from_value(json!({
+                "taskId": "mobile-1", "taskType": format!("TASK_TYPE_{name}"),
+                "inputFiles": ["/cache/book.epub"], "options": options
+            }))
+            .unwrap();
+            assert_eq!(wire.task_type, number);
+            let task = task_spec(&wire).unwrap();
+            assert_eq!(task.task_type.as_str(), name.to_ascii_lowercase());
+            if let TaskOptions::Image(options) = task.options {
+                assert_eq!(options.png_quantize, Some(false));
+                if number == 7 {
+                    assert_eq!(options.jpeg_quality, Some(82));
+                    assert_eq!(options.webp_quality, Some(82));
+                    assert_eq!(options.png_to_jpg, Some(false));
+                } else {
+                    assert_eq!(options.quality, Some(82));
+                }
+            }
+        }
+    }
 }

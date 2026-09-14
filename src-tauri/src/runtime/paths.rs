@@ -3,7 +3,7 @@ use std::{fs, path::PathBuf};
 use tauri::{AppHandle, Manager};
 
 pub fn workspace_root() -> Option<PathBuf> {
-    if !cfg!(debug_assertions) {
+    if cfg!(target_os = "android") || !cfg!(debug_assertions) {
         return None;
     }
 

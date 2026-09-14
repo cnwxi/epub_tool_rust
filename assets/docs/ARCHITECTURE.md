@@ -16,6 +16,12 @@ Vue / TypeScript
 
 所有平台使用同一个进程内运行时，不启动任务子进程。Tauri 异步命令通过阻塞线程池调用业务核心，避免长任务阻塞 UI 事件循环。
 
+## 平台边界
+
+桌面与 Android 使用唯一 `frontend/src/App.vue` 入口、protobuf 协议、命令适配器和任务引擎。`runtime/files.rs` 定义 `PlatformFiles`，按目标系统编译 `desktop_files.rs` 或 `android_files.rs`。Android 先将系统 URI 暂存到独立的应用缓存目录，保留文件名与任务后缀，读取失败时清理本次半成品，再把普通文件路径传入核心；结果通过系统保存对话框导出。外部打开事件排队后由前端读取。
+
+能力查询控制目录选择、扫描、路径打开和字体入口。桌面链接 core 的 `font` feature；Android 不链接字体/OCR，OpenCC 从 APK 资源提取至应用数据目录。设置和历史使用同一持久化服务，Android 文件位于应用沙箱。`epub_tool_core` 仍是固定 Git tag 的独立依赖，原 Android 仓库不参与构建。
+
 ## 核心 contract
 
 `epub_tool_core::task` 定义：

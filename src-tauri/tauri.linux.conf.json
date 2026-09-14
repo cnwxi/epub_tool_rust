@@ -1,0 +1,7 @@
+{
+  "bundle": {
+    "resources": {
+      "bundle-resources/ocr-models/PP-OCRv6_small_rec_onnx/*": "ocr-models/PP-OCRv6_small_rec_onnx/"
+    }
+  }
+}

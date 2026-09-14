@@ -31,12 +31,55 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         "verify-ocr-model" => verify_ocr_model(arguments.get(1).map(String::as_str)),
         "desktop-dev" => desktop_dev(&arguments[1..]),
         "desktop-build" => desktop_build(&arguments[1..]),
+        "mobile-dev" => mobile_command("dev", &arguments[1..]),
+        "mobile-build" => mobile_command("build", &arguments[1..]),
         _ => Err(usage()),
     }
 }
 
+fn mobile_tauri_arguments(action: &str, arguments: &[String]) -> Result<Vec<String>, String> {
+    let platform = arguments.first().map(String::as_str);
+    if platform != Some("android") {
+        return Err("必须指定 android 平台".to_string());
+    }
+    let mut result: Vec<String> = ["run", "tauri", "--", "android", action]
+        .into_iter()
+        .map(str::to_string)
+        .collect();
+    if action == "build"
+        && arguments
+            .get(1)
+            .is_some_and(|value| !value.starts_with('-'))
+    {
+        result.push("--target".to_string());
+    }
+    // android dev accepts a positional device name; only build accepts --target.
+    result.extend_from_slice(&arguments[1..]);
+    Ok(result)
+}
+
+fn mobile_command(action: &str, arguments: &[String]) -> Result<(), String> {
+    let tauri_arguments = mobile_tauri_arguments(action, arguments)?;
+    let informational = arguments
+        .iter()
+        .any(|arg| matches!(arg.as_str(), "--help" | "-h" | "--version" | "-V"));
+    if action == "build" && !informational {
+        ensure_android_project_icon()?;
+    }
+    let status = npm_command()
+        .current_dir(repo_root()?)
+        .args(tauri_arguments)
+        .status()
+        .map_err(|error| format!("启动 Android Tauri {action} 失败: {error}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("Android Tauri {action} 失败: {status}"))
+    }
+}
+
 fn usage() -> String {
-    "Usage:\n  cargo run --locked --manifest-path xtask/Cargo.toml -- verify-ocr-model [model-name]\n  cargo run --locked --manifest-path xtask/Cargo.toml -- desktop-dev [Tauri dev options]\n  cargo run --locked --manifest-path xtask/Cargo.toml -- desktop-build [Tauri build options]".to_string()
+    "Usage:\n  cargo run --locked --manifest-path xtask/Cargo.toml -- verify-ocr-model [model-name]\n  cargo run --locked --manifest-path xtask/Cargo.toml -- desktop-dev [Tauri dev options]\n  cargo run --locked --manifest-path xtask/Cargo.toml -- desktop-build [Tauri build options]\n  cargo run --locked --manifest-path xtask/Cargo.toml -- mobile-dev android [device] [options]\n  cargo run --locked --manifest-path xtask/Cargo.toml -- mobile-build android [target] [options]".to_string()
 }
 
 fn repo_root() -> Result<PathBuf, String> {
@@ -354,4 +397,153 @@ fn copy_if_changed(source: &Path, destination: &Path) -> Result<(), String> {
     fs::copy(source, destination)
         .map_err(|error| format!("复制原生库失败 {}: {error}", destination.display()))?;
     Ok(())
+}
+
+fn ensure_android_project_icon() -> Result<(), String> {
+    let root = repo_root()?;
+    let project_dir = root.join("src-tauri/gen/android");
+    if !project_dir.join("app/build.gradle.kts").is_file() {
+        let status = npm_command()
+            .current_dir(&root)
+            .args([
+                "run",
+                "tauri",
+                "--",
+                "android",
+                "init",
+                "--ci",
+                "--skip-targets-install",
+            ])
+            .status()
+            .map_err(|error| format!("初始化 Android 原生工程失败: {error}"))?;
+        if !status.success() {
+            return Err(format!("初始化 Android 原生工程失败: {status}"));
+        }
+    }
+
+    let icon_output = root.join("src-tauri/.icon-build");
+    let icon_output_arg = icon_output.to_string_lossy().into_owned();
+    let status = npm_command()
+        .current_dir(&root)
+        .args([
+            "run",
+            "tauri",
+            "--",
+            "icon",
+            "assets/img/icon.png",
+            "--output",
+        ])
+        .arg(&icon_output_arg)
+        .status()
+        .map_err(|error| format!("生成 Android launcher 图标失败: {error}"))?;
+    if !status.success() {
+        return Err(format!("生成 Android launcher 图标失败: {status}"));
+    }
+
+    let destination = project_dir.join("app/src/main/res");
+    let source = icon_output.join("android");
+    if source.is_dir() {
+        copy_directory_contents(&source, &destination)
+            .map_err(|error| format!("同步 Android launcher 图标失败: {error}"))?;
+    }
+
+    // Tauri writes directly to the generated Android project when it already exists.
+    // When that happens there is no separate output/android directory to copy.
+    for file in [
+        "mipmap-xxxhdpi/ic_launcher.png",
+        "mipmap-xxxhdpi/ic_launcher_foreground.png",
+        "mipmap-anydpi-v26/ic_launcher.xml",
+    ] {
+        if !destination.join(file).is_file() {
+            return Err(format!(
+                "Android launcher 图标生成后缺少文件: {}",
+                destination.join(file).display()
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn copy_directory_contents(source: &Path, destination: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(destination)?;
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        let source_path = entry.path();
+        let destination_path = destination.join(entry.file_name());
+        if source_path.is_dir() {
+            copy_directory_contents(&source_path, &destination_path)?;
+        } else {
+            fs::copy(source_path, destination_path)?;
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::mobile_tauri_arguments;
+
+    fn arguments(values: &[&str]) -> Vec<String> {
+        values.iter().map(|value| value.to_string()).collect()
+    }
+
+    #[test]
+    fn android_build_maps_positional_abi_after_subcommand() {
+        let result = mobile_tauri_arguments(
+            "build",
+            &arguments(&["android", "aarch64", "--split-per-abi", "--apk", "--ci"]),
+        )
+        .unwrap();
+        assert_eq!(
+            result,
+            arguments(&[
+                "run",
+                "tauri",
+                "--",
+                "android",
+                "build",
+                "--target",
+                "aarch64",
+                "--split-per-abi",
+                "--apk",
+                "--ci"
+            ])
+        );
+    }
+
+    #[test]
+    fn android_dev_passes_device_name_without_build_target_flag() {
+        let result =
+            mobile_tauri_arguments("dev", &arguments(&["android", "Pixel 8", "--no-watch"]))
+                .unwrap();
+        assert_eq!(
+            result,
+            arguments(&[
+                "run",
+                "tauri",
+                "--",
+                "android",
+                "dev",
+                "Pixel 8",
+                "--no-watch"
+            ])
+        );
+    }
+
+    #[test]
+    fn android_options_remain_unchanged_without_positional_abi() {
+        let result = mobile_tauri_arguments(
+            "build",
+            &arguments(&["android", "--target", "armv7", "i686", "--apk"]),
+        )
+        .unwrap();
+        assert_eq!(
+            result,
+            arguments(&[
+                "run", "tauri", "--", "android", "build", "--target", "armv7", "i686", "--apk"
+            ])
+        );
+        assert!(mobile_tauri_arguments("build", &[]).is_err());
+        assert!(mobile_tauri_arguments("build", &arguments(&["ios"])).is_err());
+    }
 }

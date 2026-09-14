@@ -39,7 +39,7 @@ export function useTaskBridge() {
     supportsDirectoryPicker: false,
     supportsDirectoryScan: false,
     supportsOpenPath: false,
-    requiresOutputExport: false,
+    requiresOutputExport: import.meta.env.MODE === "mobile",
     supportsFileAssociations: false,
     supportsFontOcr: false,
   });
@@ -58,7 +58,7 @@ export function useTaskBridge() {
     onEvent: (event: EngineEvent) => void,
   ): Promise<EngineResponse> => {
     if (!isTauriRuntime()) {
-      throw new Error("当前环境不支持该功能，请在桌面应用中使用。");
+      throw new Error("当前环境不支持该功能，请在应用中使用。");
     }
 
     const channel = new Channel<EngineEvent>((event) => {
@@ -77,7 +77,7 @@ export function useTaskBridge() {
     onEvent: (event: EngineEvent) => void,
   ): Promise<EngineResponse> => {
     if (!isTauriRuntime()) {
-      throw new Error("当前环境不支持该功能，请在桌面应用中使用。");
+      throw new Error("当前环境不支持该功能，请在应用中使用。");
     }
     const channel = new Channel<EngineEvent>((event) => {
       onEvent(normalizeEngineEvent(event));
@@ -171,8 +171,22 @@ export function useTaskBridge() {
     await invoke("save_persisted_state", { key, value });
   };
 
+  const stageSourceForTask = async (sourcePath: string, extension: string): Promise<string> => {
+    if (!isTauriRuntime()) return sourcePath;
+    return invoke<string>("stage_source_for_task", { sourcePath, extension });
+  };
+  const exportOutput = async (sourcePath: string, destinationPath: string): Promise<void> => {
+    if (!isTauriRuntime()) return;
+    await invoke("export_output", { sourcePath, destinationPath });
+  };
+  const takeOpenedSources = async (): Promise<string[]> => {
+    if (!isTauriRuntime()) return [];
+    return invoke<string[]>("take_opened_sources");
+  };
+
   return {
     collectEpubFiles,
+    exportOutput,
     getLogPath,
     getPersistedStorePath,
     getEngineStatus,
@@ -185,6 +199,8 @@ export function useTaskBridge() {
     resolveInputSources,
     runTask,
     savePersistedState,
+    stageSourceForTask,
+    takeOpenedSources,
     platformCapabilities,
     validateOutputDirectory,
   };

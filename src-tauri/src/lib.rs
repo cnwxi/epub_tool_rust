@@ -7,6 +7,7 @@ pub mod engine_protocol;
 
 pub use epub_tool_core::{TaskEvent, TaskOptions, TaskResult, TaskSpec, TaskType};
 
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     app::run();
 }
