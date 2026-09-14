@@ -116,14 +116,31 @@ jobs:
         run: |
           set -euo pipefail
           apk=$(find src-tauri/gen/android/app/build/outputs/apk -type f -path '*/release/*.apk' -print -quit)
-          test -n "$apk"
+          if [ -z "$apk" ]; then
+            echo '未找到 release APK；实际输出目录如下：' >&2
+            find src-tauri/gen/android/app/build/outputs -type f -print >&2 || true
+            exit 1
+          fi
+          echo "验证 APK: $apk"
           aapt2=$(find "$ANDROID_HOME/build-tools" -type f -name aapt2 | sort -V | tail -n 1)
+          test -x "$aapt2"
           badging=$("$aapt2" dump badging "$apk")
+          echo "$badging"
           cargo_version=$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -n 1)
-          config_version=$(node -p "require('./src-tauri/tauri.conf.json').version")
-          test "$cargo_version" = "$config_version"
-          grep -F "versionName='$cargo_version'" <<<"$badging"
-          grep -F "application-icon-" <<<"$badging"
+          # Tauri falls back to Cargo.toml when the config omits version.
+          config_version=$(node -p 'require("./src-tauri/tauri.conf.json").version ?? process.argv[1]' "$cargo_version")
+          if [ "$cargo_version" != "$config_version" ]; then
+            echo "版本不一致: Cargo=$cargo_version, Tauri=$config_version" >&2
+            exit 1
+          fi
+          if ! grep -F "versionName='$cargo_version'" <<<"$badging"; then
+            echo "APK versionName 与 Cargo 版本 $cargo_version 不一致" >&2
+            exit 1
+          fi
+          if ! grep -F "application-icon-" <<<"$badging"; then
+            echo 'APK 缺少 application-icon badging 记录' >&2
+            exit 1
+          fi
       - name: Sign Android release APK
         shell: bash
         env:
