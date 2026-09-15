@@ -36,6 +36,8 @@
 
 ## 尚未验证
 
+Android 配置显式设置 `versionName` 为 `26.8.25`（与 Cargo.toml 同步）；此前缺少该字段时 Tauri 默认生成 `1.0`。
+
 本机未安装 Android SDK，`tauri android init --ci --skip-targets-install` 明确报错，因此未验证 Android Rust target 编译、Gradle、APK 打包或真机操作。依赖树与浏览器检查不能替代 Android 构建。
 
 在配置 SDK/NDK/JDK/Rust targets 的环境执行：

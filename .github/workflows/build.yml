@@ -127,10 +127,9 @@ jobs:
           badging=$("$aapt2" dump badging "$apk")
           echo "$badging"
           cargo_version=$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -n 1)
-          # Tauri falls back to Cargo.toml when the config omits version.
-          config_version=$(node -p 'require("./src-tauri/tauri.conf.json").version ?? process.argv[1]' "$cargo_version")
+          config_version=$(node -p 'require("./src-tauri/tauri.conf.json").version ?? ""')
           if [ "$cargo_version" != "$config_version" ]; then
-            echo "版本不一致: Cargo=$cargo_version, Tauri=$config_version" >&2
+            echo "版本不一致或 Tauri 配置缺少 version: Cargo=$cargo_version, Tauri=$config_version" >&2
             exit 1
           fi
           apkanalyzer=$(find "$ANDROID_HOME/cmdline-tools" "$ANDROID_HOME/tools" -type f -name apkanalyzer 2>/dev/null | sort -V | tail -n 1 || true)

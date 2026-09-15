@@ -63,6 +63,8 @@ GitHub Release 发布 Windows、macOS 和 Linux 桌面安装包。发布前在 `
 
 ## Android 与统一发布
 
+Android 的 `versionName` 来自 Tauri 配置根字段 `version`。它不会像部分桌面元数据一样回退到 Cargo 版本，因此每次发版必须同步修改 `src-tauri/tauri.conf.json` 和 `src-tauri/Cargo.toml`；CI 会在 APK 校验前拒绝两者不一致。
+
 ```bash
 npm run tauri -- android init --ci --skip-targets-install
 cargo run --locked --manifest-path xtask/Cargo.toml -- mobile-build android aarch64 --split-per-abi --apk --ci

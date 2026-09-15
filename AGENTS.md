@@ -109,6 +109,7 @@ Vue / generated TypeScript protobuf types
 - `PlatformFiles` 负责 Android URI 暂存与导出、桌面路径与目录操作；核心不接收 URI 或 Tauri 类型。
 - Android 禁用 core 的 `font` feature，不打包 OCR 模型；OpenCC 资源解包到应用数据目录。界面根据能力隐藏字体、目录扫描和路径打开入口。
 - 生成目录 `src-tauri/gen/android/` 不提交，构建不依赖原 Android 仓库。
+- `src-tauri/tauri.conf.json` 的 `version` 必须与 `src-tauri/Cargo.toml` 的版本一致；Android 不使用 Cargo 版本回退，缺少该字段会生成 `versionName=1.0`。
 
 ## 行为约定
 
