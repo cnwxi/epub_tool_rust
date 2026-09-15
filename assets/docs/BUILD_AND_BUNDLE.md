@@ -74,4 +74,14 @@ cargo run --locked --manifest-path xtask/Cargo.toml -- mobile-build android aarc
 
 根目录 `.github/workflows/build.yml` 同时构建桌面矩阵和 Android 四 ABI：`aarch64`、`armv7`、`x86_64`、`i686`。发布 job 等待所有平台成功后汇总同一 release 的资产。
 
-Android 签名沿用 `ANDROID_KEYSTORE_BASE64`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD` 仓库 secrets；需在统一应用仓库配置。缺失时沿用临时 CI 签名，不能用于跨版本覆盖升级。APK 位于 `src-tauri/gen/android/app/build/outputs/apk/`；初始化目录和构建缓存均不提交。
+Android release 必须使用同一个长期保存的 keystore，否则 Android 会拒绝覆盖安装旧版本。首次生成 keystore（文件只生成一次，务必离线备份）：
+
+```bash
+keytool -genkeypair -v -keystore android-release.keystore \
+  -storepass '<store-password>' -keypass '<key-password>' \
+  -alias '<key-alias>' -keyalg RSA -keysize 2048 -validity 10000 \
+  -dname 'CN=Epub Tool, OU=Development, O=cnwxi, C=CN'
+base64 < android-release.keystore | tr -d '\n'
+```
+
+将输出和三个密码/别名配置为统一仓库的 `ANDROID_KEYSTORE_BASE64`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD` secrets。CI 未配置这些 secrets 时会直接失败，不再生成临时签名 APK。APK 位于 `src-tauri/gen/android/app/build/outputs/apk/`；初始化目录和构建缓存均不提交。

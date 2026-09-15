@@ -174,9 +174,8 @@ jobs:
             printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore"
             store_password="$ANDROID_KEYSTORE_PASSWORD"; key_alias="$ANDROID_KEY_ALIAS"; key_password="$ANDROID_KEY_PASSWORD"
           else
-            echo "未配置 Android release keystore，使用本次 CI 临时签名；后续版本不能依靠该签名覆盖升级。" >&2
-            store_password=android; key_alias=androidrelease; key_password=android
-            keytool -genkeypair -v -keystore "$keystore" -storepass "$store_password" -keypass "$key_password" -alias "$key_alias" -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Epub Tool, OU=Development, O=cnwxi, C=CN"
+            echo "未配置 Android release keystore；拒绝生成临时签名 APK。请配置 ANDROID_KEYSTORE_BASE64、ANDROID_KEYSTORE_PASSWORD、ANDROID_KEY_ALIAS 和 ANDROID_KEY_PASSWORD。" >&2
+            exit 1
           fi
           apksigner=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)
           "$apksigner" sign --ks "$keystore" --ks-pass "pass:$store_password" --ks-key-alias "$key_alias" --key-pass "pass:$key_password" "$apk"
