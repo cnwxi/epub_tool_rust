@@ -1,5 +1,9 @@
 # 更新日志
 
+### 26.9.15
+完成 Android 平台文件处理与资源管理能力并合并至统一桌面工程；桌面端与 Android 共用同一套前端、Tauri 入口、协议和 Rust 运行时。<br>
+增强 Android APK 版本校验，确保生成的 `versionName` 与 Cargo 和 Tauri 配置保持一致。<br>
+
 ### 26.8.25
 将平台无关的 EPUB、字体、图片和文本处理逻辑抽取至独立的 `epub_tool_core` 仓库；桌面端固定依赖 `v26.8.25`，继续通过类型化任务契约执行统一核心。<br>
 保留 Tauri IPC、桌面进程内运行时、OCR/OpenCC 资源定位、窗口与 UI 适配；删除客户端中的重复 Rust 业务实现和核心回归测试。<br>

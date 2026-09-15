@@ -119,6 +119,8 @@ body {
   overflow: hidden;
   color: var(--text-primary);
   background: transparent;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 html,
@@ -133,6 +135,7 @@ html,
   height: 100vh;
   /* Keep a painted surface behind the glass layers when native transparency is unavailable. */
   background: var(--bg-canvas);
+  min-width: 0;
 }
 
 button,
@@ -791,6 +794,7 @@ input {
   /* border-left：控制右侧与左侧导航交界处的分隔线 */
   /* rgba 最后一位 0.08 越大分隔越明显，越小越隐约 */
   border-left: 1px solid rgba(255, 255, 255, 0.8);
+  min-width: 0;
 }
 
 .workspace-shell::-webkit-scrollbar {
@@ -811,6 +815,7 @@ input {
   padding: 22px;
   background: transparent;
   grid-auto-rows: min-content;
+  min-width: 0;
 }
 
 
@@ -2302,7 +2307,11 @@ input {
 
 .about-path-card p {
   margin: 0;
-  word-break: break-all;
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* .about-hero {
@@ -3171,6 +3180,8 @@ input {
     height: auto;
     min-height: 100dvh;
     overflow: visible;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   body {
