@@ -3180,7 +3180,9 @@ input {
     height: auto;
     min-height: 100dvh;
     overflow: visible;
-    padding-top: env(safe-area-inset-top, 0px);
+    /* Android WebViews may report a zero safe-area inset while drawing below
+       the status bar. Keep the header and first section clear in that case. */
+    padding-top: max(env(safe-area-inset-top, 0px), 28px);
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
@@ -3220,6 +3222,17 @@ input {
 @media (max-width: 760px) {
   .workspace {
     padding: 16px;
+  }
+
+  .about-metric-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--layout-gap-3);
+  }
+
+  .about-metric-row .about-metric {
+    min-height: 96px;
+    flex: none;
   }
 
   .masonry-board {
