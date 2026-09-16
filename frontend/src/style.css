@@ -3053,6 +3053,7 @@ button:focus:not(:focus-visible) {
   }
 
   .side-nav {
+    position: static;
     min-height: 64px;
     height: 64px;
     padding: 0;
@@ -3141,8 +3142,7 @@ button:focus:not(:focus-visible) {
 
   .nav-groups {
     position: absolute;
-    /* Positioned inside .side-nav, which is already below the safe area. */
-    top: 64px;
+    top: var(--mobile-header-height);
     right: 0;
     left: 0;
     display: none;
@@ -3218,10 +3218,6 @@ button:focus:not(:focus-visible) {
   #app,
   .app-shell {
     height: auto;
-  }
-
-  .side-nav {
-    position: relative;
   }
 
   .workspace {
