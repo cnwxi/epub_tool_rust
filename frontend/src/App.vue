@@ -286,15 +286,6 @@ const isMobile = computed(() => {
     || import.meta.env.MODE === "mobile"
   );
 });
-const COMPACT_LAYOUT_QUERY = "(max-width: 900px)";
-const readCompactLayout = (): boolean =>
-  typeof window !== "undefined" && window.matchMedia(COMPACT_LAYOUT_QUERY).matches;
-const isCompactLayout = ref(readCompactLayout());
-const useMobileAboutCopy = computed(() => isMobile.value || isCompactLayout.value);
-let compactLayoutMedia: MediaQueryList | null = null;
-const syncCompactLayout = () => {
-  isCompactLayout.value = readCompactLayout();
-};
 function supportsTask(task: SectionKey) {
   return !["encrypt_font", "decrypt_font"].includes(task) || platformCapabilities.value.supportsFontOcr;
 }
@@ -2675,9 +2666,6 @@ let removeCustomScrollbarResizeListener: (() => void) | null = null;
 onMounted(async () => {
   if (typeof window !== "undefined") {
     clientPlatform.value = detectClientPlatform();
-    compactLayoutMedia = window.matchMedia(COMPACT_LAYOUT_QUERY);
-    compactLayoutMedia.addEventListener("change", syncCompactLayout);
-    syncCompactLayout();
     document.addEventListener("pointerdown", handleOcrPolicyOutsidePointerDown);
 
     if (typeof ResizeObserver !== "undefined") {
@@ -2828,8 +2816,6 @@ onBeforeUnmount(() => {
   pendingTaskEvents.length = 0;
   removeMasonryResizeListener?.();
   removeCustomScrollbarResizeListener?.();
-  compactLayoutMedia?.removeEventListener("change", syncCompactLayout);
-  compactLayoutMedia = null;
   if (typeof document !== "undefined") {
     document.removeEventListener("pointerdown", handleOcrPolicyOutsidePointerDown);
   }
@@ -3546,13 +3532,13 @@ activeSection.value = normalizeSectionKey(activeSection.value);
             <section class="settings-block section-animated-block glass-medium">
               <div class="settings-block-head">
                 <div>
-                  <p class="eyebrow">路径工具</p>
-                  <h3>日志与设置文件</h3>
-                  <p class="muted">开发态写入仓库根目录，打包版分别写入系统日志目录和应用配置目录。</p>
+                  <p class="eyebrow">{{ isMobile ? "日志工具" : "路径工具" }}</p>
+                  <h3>{{ isMobile ? "处理日志" : "日志与设置文件" }}</h3>
+                  <p class="muted">{{ isMobile ? "处理日志保存在应用内，可导出到设备存储。" : "开发态写入仓库根目录，打包版分别写入系统日志目录和应用配置目录。" }}</p>
                 </div>
               </div>
               <div class="settings-path-grid">
-                <button class="settings-log-card settings-path-card glass-medium"
+                <button v-if="!isMobile" class="settings-log-card settings-path-card glass-medium"
                   :disabled="!currentLogPath || !platformCapabilities.supportsOpenPath" type="button"
                   @click="currentLogPath && openPath(currentLogPath)">
                   <span>当前日志文件</span>
@@ -3563,7 +3549,7 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                   <span>日志导出</span>
                   <strong>导出到设备存储</strong>
                 </button>
-                <button class="settings-log-card settings-path-card glass-medium"
+                <button v-if="!isMobile" class="settings-log-card settings-path-card glass-medium"
                   :disabled="!currentPersistedStorePath || !platformCapabilities.supportsOpenPath" type="button"
                   @click="openPersistedStoreFile">
                   <span>当前设置文件</span>
@@ -3593,8 +3579,8 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                 <span>文件导入、任务队列、处理日志与结果摘要</span>
               </article>
               <article class="about-summary-card glass-medium">
-                <strong>{{ useMobileAboutCopy ? "结果导出" : "独立输出记忆" }}</strong>
-                <span>{{ useMobileAboutCopy ? "通过系统保存对话框导出处理结果" : "每个子功能分别保存默认输出目录" }}</span>
+                <strong>{{ isMobile ? "结果导出" : "独立输出记忆" }}</strong>
+                <span>{{ isMobile ? "通过系统保存对话框导出处理结果" : "每个子功能分别保存默认输出目录" }}</span>
               </article>
             </section>
 
@@ -3615,11 +3601,11 @@ activeSection.value = normalizeSectionKey(activeSection.value);
             <article class="about-card glass-medium section-animated-block">
               <div class="about-card-head">
                 <p class="eyebrow">输出规则</p>
-                <h4>{{ useMobileAboutCopy ? "保存处理结果" : "子功能输出目录" }}</h4>
+                <h4>{{ isMobile ? "保存处理结果" : "子功能输出目录" }}</h4>
               </div>
-              <p v-if="useMobileAboutCopy" class="muted">处理结果暂存在应用缓存中，请在结果区点击“导出”并选择保存位置。</p>
+              <p v-if="isMobile" class="muted">处理结果暂存在应用缓存中，请在结果区点击“导出”并选择保存位置。</p>
               <p v-else class="muted">每个子功能都会独立记住上一次输出位置，未设置时默认输出到源文件同级目录。</p>
-              <div v-if="!useMobileAboutCopy" class="about-path-grid">
+              <div v-if="!isMobile" class="about-path-grid">
                 <div v-for="item in outputDirectorySummary" :key="item.taskType" class="about-path-card glass-medium">
                   <strong>{{ item.label }}</strong>
                   <p>{{ item.path }}</p>
@@ -3627,7 +3613,7 @@ activeSection.value = normalizeSectionKey(activeSection.value);
               </div>
             </article>
 
-            <article v-if="!useMobileAboutCopy" class="about-card glass-medium section-animated-block">
+            <article v-if="!isMobile" class="about-card glass-medium section-animated-block">
               <div class="about-card-head">
                 <p class="eyebrow">日志说明</p>
                 <h4>日志文件位置</h4>
@@ -3643,7 +3629,7 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                 </div>
               </div>
             </article>
-            <article v-if="!useMobileAboutCopy" class="about-card glass-medium section-animated-block">
+            <article v-if="!isMobile" class="about-card glass-medium section-animated-block">
               <div class="about-card-head">
                 <p class="eyebrow">持久化说明</p>
                 <h4>设置文件位置</h4>

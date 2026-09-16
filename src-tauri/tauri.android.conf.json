@@ -27,7 +27,6 @@
     },
     "icon": [
       "../assets/img/icon.png"
-    ],
-    "fileAssociations": []
+    ]
   }
 }
