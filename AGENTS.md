@@ -93,6 +93,14 @@ Vue / generated TypeScript protobuf types
 - OCR 低置信度或非单字结果不得猜测替换；必须保留状态码、置信度、Top-K 候选与字形图片供复核。
 - CSS/OPF 中已解密字体引用的清理只能消费字体决策结果，不得自行决定元素或字符使用哪个字体。
 
+## 前端构建
+
+- `frontend/tsconfig.json` 必须保持 `"module": "ESNext"` 和 `"moduleResolution": "bundler"`，这是 Vite + Vue 的正确配置。
+- 禁止改回 `"module": "Node16"` / `"NodeNext"`。TypeScript 在该模式下不把 `.vue` 视为 ESM，`vue-tsc` 会按 CommonJS 检查，`import.meta` 会报 `TS1470: The 'import.meta' meta-property is not allowed in files which will build into CommonJS output`。该错误会让桌面 `build:bundle-assets` 和 Android `build:mobile-assets` 在 CI 的 `beforeBuildCommand` 全部失败。
+- `import.meta.env`（含 `MODE === "mobile"`）只写在 `.ts` 文件中，例如 `frontend/src/composables/useTaskBridge.ts` 的 `isMobileFrontendMode`。不要写进 `.vue` 的 `<script setup>`。
+- 前端类型或构建相关改动后至少执行 `npm --prefix frontend run build`；若涉及 mobile mode 或 Android 资源，再执行 `npm --prefix frontend run build:mobile`。
+
+
 ## 平台与发布
 
 | 平台 | 架构 / ABI | 运行方式 | 字体 OCR | CI 产物 |
@@ -140,6 +148,7 @@ cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D w
 cargo clippy --locked --manifest-path xtask/Cargo.toml --all-targets -- -D warnings
 npm run protocol:check
 npm run build
+npm --prefix frontend run build:mobile
 npm run build:verify-ocr-model
 ```
 

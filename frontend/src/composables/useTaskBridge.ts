@@ -32,8 +32,10 @@ const normalizeEngineResponse = (response: EngineResponse): EngineResponse => ({
   taskResult: normalizeTaskResult(response.taskResult) ?? undefined,
 });
 
+export const isMobileFrontendMode = import.meta.env.MODE === "mobile";
+
 export function useTaskBridge() {
-  const isMobileFrontend = import.meta.env.MODE === "mobile";
+  const isMobileFrontend = isMobileFrontendMode;
   const platformCapabilities = shallowRef<PlatformCapabilities>({
     platform: isMobileFrontend ? "android" : "unknown",
     runtime: "browser",

@@ -8,7 +8,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import DropZone from "./components/DropZone.vue";
 import SideNav from "./components/SideNav.vue";
 import { usePersistentState } from "./composables/usePersistentState";
-import { useTaskBridge } from "./composables/useTaskBridge";
+import { isMobileFrontendMode, useTaskBridge } from "./composables/useTaskBridge";
 import { normalizeTaskResult } from "./types";
 import type {
   AppSettings,
@@ -283,7 +283,7 @@ const isMobile = computed(() => {
   return (
     capabilities.requiresOutputExport
     || capabilities.platform === "android"
-    || import.meta.env.MODE === "mobile"
+    || isMobileFrontendMode
   );
 });
 function supportsTask(task: SectionKey) {
