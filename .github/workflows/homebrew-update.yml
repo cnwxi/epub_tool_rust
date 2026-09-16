@@ -55,7 +55,7 @@ jobs:
           from pathlib import Path
           p = Path(sys.argv[1]); text = p.read_text()
           text = re.sub(r'(?m)^  version ".*"$', f'  version "{os.environ["VERSION"]}"', text, count=1)
-          text = re.sub(r'(?m)^  sha256 .+?(?=\n  url )', f'  sha256 arm: "{os.environ["SHA_ARM"]}",\n         intel: "{os.environ["SHA_INTEL"]}"', text, count=1)
+          text = re.sub(r'(?ms)^  sha256 .+?(?=\n  url )', f'  sha256 arm: "{os.environ["SHA_ARM"]}",\n         intel: "{os.environ["SHA_INTEL"]}"', text, count=1)
           text = re.sub(r'(?m)^  url ".*"$', '  url "https://github.com/cnwxi/epub_tool_rust/releases/download/v#{version}/Epub.Tool.NewUI_#{version}_macos_#{arch}_small.dmg"', text, count=1)
           p.write_text(text)
           PY
@@ -69,5 +69,7 @@ jobs:
           git config user.email github-actions[bot]@users.noreply.github.com
           git remote set-url origin "https://x-access-token:${TAP_TOKEN}@github.com/cnwxi/homebrew-tap.git"
           git add Casks/epub-tool-newui.rb
-          git diff --staged --quiet || git commit -m "Update epub-tool-rust to v${{ steps.asset.outputs.version }}"
-          git diff --staged --quiet || git push origin main
+          if ! git diff --staged --quiet; then
+            git commit -m "Update epub-tool-newui to v${{ steps.asset.outputs.version }}"
+            git push origin main
+          fi
