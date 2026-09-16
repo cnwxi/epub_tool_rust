@@ -2488,7 +2488,7 @@ const openLogFile = () => {
 const exportLogFile = async () => {
   try {
     const destination = await save({
-      defaultPath: "epub-tool-log.txt",
+      defaultPath: "log.txt",
       filters: [{ name: "日志文件", extensions: ["txt", "log"] }],
     });
     if (typeof destination === "string") {

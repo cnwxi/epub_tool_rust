@@ -1,4 +1,4 @@
-# Epub Tool
+# Epub Tool Rust
 
 <p align="center">
   <img src="./assets/img/icon.ico" alt="Epub Tool Icon" width="120">
