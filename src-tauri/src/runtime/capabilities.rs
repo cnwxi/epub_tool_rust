@@ -39,6 +39,8 @@ impl PlatformCapabilities {
 
 #[cfg(test)]
 mod tests {
+    use super::PlatformCapabilities;
+
     #[test]
     fn android_capabilities_require_export_without_font_or_desktop_paths() {
         let capabilities = PlatformCapabilities::for_platform("android");
@@ -50,8 +52,6 @@ mod tests {
         assert!(!capabilities.supports_open_path);
         assert!(!capabilities.supports_font_ocr);
     }
-
-    use super::PlatformCapabilities;
 
     #[test]
     fn desktop_platforms_preserve_path_and_font_capabilities() {

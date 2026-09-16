@@ -23,7 +23,7 @@ pub fn task_spec(request: &RunTaskRequest) -> Result<TaskSpec, String> {
     })
 }
 
-pub fn task_result(result: TaskResult) -> Result<WireTaskResult, String> {
+fn task_result(result: TaskResult) -> Result<WireTaskResult, String> {
     Ok(WireTaskResult {
         ok: result.ok,
         status: result.status,

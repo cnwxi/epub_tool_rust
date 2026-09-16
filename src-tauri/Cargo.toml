@@ -26,9 +26,6 @@ pbjson = "0.7"
 tauri = { version = "2.2.5", features = ["macos-private-api"] }
 tauri-plugin-dialog = "2.2.0"
 
-[target.'cfg(unix)'.dependencies]
-libc = "0.2"
-
 [target.'cfg(target_os = "macos")'.dependencies]
 window-vibrancy = "0.6"
 

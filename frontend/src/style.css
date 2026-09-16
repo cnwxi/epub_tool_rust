@@ -2310,14 +2310,6 @@ button:focus:not(:focus-visible) {
       color-mix(in srgb, var(--bg-panel-muted) 84%, #f6f4ef 16%));
 }
 
-.about-dashboard-empty {
-  padding: 14px 16px;
-  border-radius: 14px;
-  background: rgba(20, 33, 61, 0.04);
-  color: var(--muted);
-  text-align: center;
-}
-
 .about-summary-card,
 .about-card,
 .about-path-card {

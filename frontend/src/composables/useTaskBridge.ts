@@ -42,7 +42,7 @@ export function useTaskBridge() {
     supportsOpenPath: false,
     requiresOutputExport: isMobileFrontend,
     supportsFileAssociations: false,
-    supportsFontOcr: false,
+    supportsFontOcr: !isMobileFrontend,
   });
 
   const refreshPlatformCapabilities = async (): Promise<PlatformCapabilities> => {

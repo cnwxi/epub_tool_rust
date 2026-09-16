@@ -286,6 +286,15 @@ const isMobile = computed(() => {
     || import.meta.env.MODE === "mobile"
   );
 });
+const COMPACT_LAYOUT_QUERY = "(max-width: 900px)";
+const readCompactLayout = (): boolean =>
+  typeof window !== "undefined" && window.matchMedia(COMPACT_LAYOUT_QUERY).matches;
+const isCompactLayout = ref(readCompactLayout());
+const useMobileAboutCopy = computed(() => isMobile.value || isCompactLayout.value);
+let compactLayoutMedia: MediaQueryList | null = null;
+const syncCompactLayout = () => {
+  isCompactLayout.value = readCompactLayout();
+};
 function supportsTask(task: SectionKey) {
   return !["encrypt_font", "decrypt_font"].includes(task) || platformCapabilities.value.supportsFontOcr;
 }
@@ -1117,7 +1126,6 @@ const aboutSummary = computed(() => {
   }
   return `累计已处理 ${total} 本 EPUB，其中成功 ${success} 本，跳过 ${skipped} 本，失败 ${failed} 本。`;
 });
-const aboutHasStats = computed(() => aboutStats.value.total > 0);
 const toPercentText = (value: number, total: number): string => {
   if (total <= 0) {
     return "0%";
@@ -2667,6 +2675,9 @@ let removeCustomScrollbarResizeListener: (() => void) | null = null;
 onMounted(async () => {
   if (typeof window !== "undefined") {
     clientPlatform.value = detectClientPlatform();
+    compactLayoutMedia = window.matchMedia(COMPACT_LAYOUT_QUERY);
+    compactLayoutMedia.addEventListener("change", syncCompactLayout);
+    syncCompactLayout();
     document.addEventListener("pointerdown", handleOcrPolicyOutsidePointerDown);
 
     if (typeof ResizeObserver !== "undefined") {
@@ -2817,6 +2828,8 @@ onBeforeUnmount(() => {
   pendingTaskEvents.length = 0;
   removeMasonryResizeListener?.();
   removeCustomScrollbarResizeListener?.();
+  compactLayoutMedia?.removeEventListener("change", syncCompactLayout);
+  compactLayoutMedia = null;
   if (typeof document !== "undefined") {
     document.removeEventListener("pointerdown", handleOcrPolicyOutsidePointerDown);
   }
@@ -2935,9 +2948,6 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                       </div>
                     </div>
                   </div>
-                </div>
-                <div v-if="!aboutHasStats" class="about-dashboard-empty">
-                  还没有累计处理记录。执行任意 EPUB 任务后，这里会自动开始统计。
                 </div>
               </article>
             </section>
@@ -3583,8 +3593,8 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                 <span>文件导入、任务队列、处理日志与结果摘要</span>
               </article>
               <article class="about-summary-card glass-medium">
-                <strong>{{ isMobile ? "结果导出" : "独立输出记忆" }}</strong>
-                <span>{{ isMobile ? "通过系统保存对话框导出处理结果" : "每个子功能分别保存默认输出目录" }}</span>
+                <strong>{{ useMobileAboutCopy ? "结果导出" : "独立输出记忆" }}</strong>
+                <span>{{ useMobileAboutCopy ? "通过系统保存对话框导出处理结果" : "每个子功能分别保存默认输出目录" }}</span>
               </article>
             </section>
 
@@ -3605,11 +3615,11 @@ activeSection.value = normalizeSectionKey(activeSection.value);
             <article class="about-card glass-medium section-animated-block">
               <div class="about-card-head">
                 <p class="eyebrow">输出规则</p>
-                <h4>{{ isMobile ? "保存处理结果" : "子功能输出目录" }}</h4>
+                <h4>{{ useMobileAboutCopy ? "保存处理结果" : "子功能输出目录" }}</h4>
               </div>
-              <p v-if="isMobile" class="muted">处理结果暂存在应用缓存中，请在结果区点击“导出”并选择保存位置。</p>
+              <p v-if="useMobileAboutCopy" class="muted">处理结果暂存在应用缓存中，请在结果区点击“导出”并选择保存位置。</p>
               <p v-else class="muted">每个子功能都会独立记住上一次输出位置，未设置时默认输出到源文件同级目录。</p>
-              <div v-if="!isMobile" class="about-path-grid">
+              <div v-if="!useMobileAboutCopy" class="about-path-grid">
                 <div v-for="item in outputDirectorySummary" :key="item.taskType" class="about-path-card glass-medium">
                   <strong>{{ item.label }}</strong>
                   <p>{{ item.path }}</p>
@@ -3617,7 +3627,7 @@ activeSection.value = normalizeSectionKey(activeSection.value);
               </div>
             </article>
 
-            <article v-if="!isMobile" class="about-card glass-medium section-animated-block">
+            <article v-if="!useMobileAboutCopy" class="about-card glass-medium section-animated-block">
               <div class="about-card-head">
                 <p class="eyebrow">日志说明</p>
                 <h4>日志文件位置</h4>
@@ -3626,14 +3636,14 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                 <span v-if="currentLogPath">当前实际日志文件：{{ currentLogPath }}</span>
                 <span v-else>开发环境默认写入仓库根目录的 log.txt，打包版按系统平台写入应用日志目录，并可从设置页直接打开。</span>
               </div>
-              <div v-if="!isMobile" class="about-path-grid about-path-grid-compact">
+              <div class="about-path-grid about-path-grid-compact">
                 <div v-for="item in defaultLogPaths" :key="item.platform" class="about-path-card glass-medium">
                   <strong>{{ item.platform }}</strong>
                   <p>{{ item.path }}</p>
                 </div>
               </div>
             </article>
-            <article v-if="!isMobile" class="about-card glass-medium section-animated-block">
+            <article v-if="!useMobileAboutCopy" class="about-card glass-medium section-animated-block">
               <div class="about-card-head">
                 <p class="eyebrow">持久化说明</p>
                 <h4>设置文件位置</h4>
