@@ -81,7 +81,7 @@ Android release 必须使用同一个长期保存的 keystore，否则 Android �
 ```bash
 keytool -genkeypair -v -keystore android-release.keystore \
   -storepass '<store-password>' -keypass '<key-password>' \
-  -alias '<key-alias>' -keyalg RSA -keysize 2048 -validity 10000 \
+  -alias '<key-alias>' -keyalg RSA -keysize 2048 -validity 36500 \
   -dname 'CN=Epub Tool, OU=Development, O=cnwxi, C=CN'
 base64 < android-release.keystore | tr -d '\n'
 ```

@@ -278,7 +278,14 @@ const {
   validateOutputDirectory,
 } = useTaskBridge();
 
-const isMobile = computed(() => platformCapabilities.value.requiresOutputExport);
+const isMobile = computed(() => {
+  const capabilities = platformCapabilities.value;
+  return (
+    capabilities.requiresOutputExport
+    || capabilities.platform === "android"
+    || import.meta.env.MODE === "mobile"
+  );
+});
 function supportsTask(task: SectionKey) {
   return !["encrypt_font", "decrypt_font"].includes(task) || platformCapabilities.value.supportsFontOcr;
 }
@@ -2992,10 +2999,10 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                         <span class="content-animated-value">{{ activeTaskDescription }}</span>
                       </div>
 
-                      <div v-if="activeTask === 'replace_cover'" class="panel-actions">
-                        <button class="secondary-btn" type="button" :disabled="taskRunning || !files.length"
-                          @click="pickCoverForFiles([...files])">选择统一封面</button>
-                      </div>
+                      <button v-if="activeTask === 'replace_cover'" class="secondary-btn wide" type="button"
+                        :disabled="taskRunning || !files.length" @click="pickCoverForFiles([...files])">
+                        选择统一封面
+                      </button>
 
                       <div v-if="activeTask === 'image_compress'" class="font-advanced-options glass-soft">
                         <label class="font-setting-field font-slider-field">
@@ -3408,17 +3415,15 @@ activeSection.value = normalizeSectionKey(activeSection.value);
               </p>
             </section>
             <section class="settings-block section-animated-block glass-medium">
-              <div class="settings-block-head">
+              <div class="settings-block-head settings-block-head-split">
                 <div>
                   <p class="eyebrow">历史</p>
                   <h3>最近任务</h3>
-                  <p class="muted">展示本地已完成任务记录。</p>
                 </div>
-                <div class="panel-actions">
-                  <button class="ghost-btn settings-action-btn" type="button" @click="clearHistory">
-                    清空历史
-                  </button>
-                </div>
+                <button class="ghost-btn settings-action-btn history-action-btn" type="button" @click="clearHistory">
+                  清空历史
+                </button>
+                <p class="muted">展示本地已完成任务记录。</p>
               </div>
               <div class="history-list">
                 <div v-if="recentHistory.length === 0" class="empty-state">
@@ -3433,7 +3438,7 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                       {{ entry.summary.success }}/{{ entry.summary.total }}
                     </p>
                   </div>
-                  <button v-if="entry.firstOutput" class="ghost-btn settings-action-btn" type="button"
+                  <button v-if="entry.firstOutput" class="ghost-btn settings-action-btn history-action-btn" type="button"
                     @click="openOutputFolder(entry.firstOutput)">
                     {{ isMobile ? "导出结果" : "打开输出文件夹" }}
                   </button>
@@ -3449,23 +3454,6 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                   <p class="eyebrow">更新</p>
                   <h3>版本更新</h3>
                   <p class="muted">支持手动检查 GitHub Release、设置启动时自动检查，并直接跳转到最新下载页。</p>
-                </div>
-                <div class="panel-actions">
-                  <label class="update-auto-check-toggle">
-                    <span>启动时自动检查</span>
-                    <span class="toggle-switch">
-                      <input v-model="settings.autoCheckUpdates" type="checkbox" />
-                      <span class="toggle-switch-track" aria-hidden="true"></span>
-                    </span>
-                  </label>
-                  <button class="ghost-btn settings-action-btn" :disabled="updateStatus === 'checking'" type="button"
-                    @click="checkForUpdates()">
-                    {{ updateStatus === "checking" ? "检查中..." : "检查更新" }}
-                  </button>
-                  <button class="ghost-btn settings-action-btn" v-if="platformCapabilities.supportsOpenPath"
-                    type="button" @click="openLatestReleasePage">
-                    下载最新版本
-                  </button>
                 </div>
               </div>
               <div class="settings-update-card settings-interactive-card glass-medium">
@@ -3483,6 +3471,23 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                     最近检查：{{ formatUpdateTime(updateCheckedAt) }}
                   </span>
                 </div>
+              </div>
+              <div class="settings-block-actions">
+                <label class="update-auto-check-toggle">
+                  <span>启动时自动检查</span>
+                  <span class="toggle-switch">
+                    <input v-model="settings.autoCheckUpdates" type="checkbox" />
+                    <span class="toggle-switch-track" aria-hidden="true"></span>
+                  </span>
+                </label>
+                <button class="ghost-btn settings-action-btn" :disabled="updateStatus === 'checking'" type="button"
+                  @click="checkForUpdates()">
+                  {{ updateStatus === "checking" ? "检查中..." : "检查更新" }}
+                </button>
+                <button class="ghost-btn settings-action-btn" v-if="platformCapabilities.supportsOpenPath"
+                  type="button" @click="openLatestReleasePage">
+                  下载最新版本
+                </button>
               </div>
             </section>
 
@@ -3612,7 +3617,7 @@ activeSection.value = normalizeSectionKey(activeSection.value);
               </div>
             </article>
 
-            <article class="about-card glass-medium section-animated-block">
+            <article v-if="!isMobile" class="about-card glass-medium section-animated-block">
               <div class="about-card-head">
                 <p class="eyebrow">日志说明</p>
                 <h4>日志文件位置</h4>
@@ -3628,7 +3633,7 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                 </div>
               </div>
             </article>
-            <article class="about-card glass-medium section-animated-block">
+            <article v-if="!isMobile" class="about-card glass-medium section-animated-block">
               <div class="about-card-head">
                 <p class="eyebrow">持久化说明</p>
                 <h4>设置文件位置</h4>

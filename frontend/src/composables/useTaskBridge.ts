@@ -33,13 +33,14 @@ const normalizeEngineResponse = (response: EngineResponse): EngineResponse => ({
 });
 
 export function useTaskBridge() {
+  const isMobileFrontend = import.meta.env.MODE === "mobile";
   const platformCapabilities = shallowRef<PlatformCapabilities>({
-    platform: "unknown",
+    platform: isMobileFrontend ? "android" : "unknown",
     runtime: "browser",
     supportsDirectoryPicker: false,
     supportsDirectoryScan: false,
     supportsOpenPath: false,
-    requiresOutputExport: import.meta.env.MODE === "mobile",
+    requiresOutputExport: isMobileFrontend,
     supportsFileAssociations: false,
     supportsFontOcr: false,
   });

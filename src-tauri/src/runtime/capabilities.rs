@@ -15,7 +15,11 @@ pub struct PlatformCapabilities {
 
 impl PlatformCapabilities {
     pub fn current() -> Self {
-        Self::for_platform(std::env::consts::OS)
+        if cfg!(target_os = "android") {
+            Self::for_platform("android")
+        } else {
+            Self::for_platform(std::env::consts::OS)
+        }
     }
 
     fn for_platform(platform: &'static str) -> Self {
@@ -66,9 +70,14 @@ mod tests {
 
     #[test]
     fn current_capabilities_report_the_compiled_target() {
-        assert_eq!(
-            PlatformCapabilities::current().platform,
-            std::env::consts::OS
-        );
+        let capabilities = PlatformCapabilities::current();
+        if cfg!(target_os = "android") {
+            assert_eq!(capabilities.platform, "android");
+            assert!(capabilities.requires_output_export);
+            assert!(!capabilities.supports_open_path);
+        } else {
+            assert_eq!(capabilities.platform, std::env::consts::OS);
+            assert!(!capabilities.requires_output_export);
+        }
     }
 }
