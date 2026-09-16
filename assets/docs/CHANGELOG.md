@@ -1,5 +1,10 @@
 # 更新日志
 
+### 26.9.16
+调整安卓客户端UI样式。
+统一日志导出默认文件名为 `log.txt`，与应用实际日志文件保持一致。<br>
+更新应用版本号并同步 Tauri、Cargo 与 Android 发布配置；补充版本号维护字段和文件说明。<br>
+
 ### 26.9.15
 完成 Android 平台文件处理与资源管理能力并合并至统一桌面工程；桌面端与 Android 共用同一套前端、Tauri 入口、协议和 Rust 运行时。<br>
 增强 Android APK 版本校验，确保生成的 `versionName` 与 Cargo 和 Tauri 配置保持一致。<br>

@@ -59,6 +59,8 @@ npm run build:verify-ocr-model
 
 版本唯一来源是 `src-tauri/Cargo.toml` 的 `package.version`，Vite、Tauri 与 Release workflow 均读取该值。版本采用“年.月.日”形式，同日修订可加 `-1`、`-2` 后缀。
 
+每次修改版本号时，更新以下字段并保持一致：`src-tauri/Cargo.toml` 的 `[package] version`、`src-tauri/tauri.conf.json` 根级 `version`，以及 `src-tauri/Cargo.lock` 中 `epub_tool_newui` 包的 `version`（可通过 Cargo 命令刷新）。同时在 `assets/docs/CHANGELOG.md` 新增对应版本标题（格式为 `### 年.月.日`）和变更记录。Android 的 `versionName` 使用 Tauri 配置中的根级 `version`，因此不能只修改 Cargo 版本。
+
 GitHub Release 发布 Windows、macOS 和 Linux 桌面安装包。发布前在 `assets/docs/CHANGELOG.md` 添加对应版本记录。
 
 ## Android 与统一发布
