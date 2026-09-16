@@ -87,3 +87,12 @@ base64 < android-release.keystore | tr -d '\n'
 ```
 
 将输出和三个密码/别名配置为统一仓库的 `ANDROID_KEYSTORE_BASE64`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD` secrets。CI 未配置这些 secrets 时会直接失败，不再生成临时签名 APK。APK 位于 `src-tauri/gen/android/app/build/outputs/apk/`；初始化目录和构建缓存均不提交。
+
+## Homebrew Tap 更新
+
+正式 `latest` 发布后，workflow 会更新 [`cnwxi/homebrew-tap`](https://github.com/cnwxi/homebrew-tap) 中的 `epub-tool-newui` cask。该步骤需要仓库 secret `HOMEBREW_TAP_TOKEN`：
+
+1. 创建 fine-grained PAT，仓库选 `cnwxi/homebrew-tap`，权限至少 `Contents: Read and write`；
+2. 把 PAT 加到 `cnwxi/epub_tool_rust` 的 repository secret，名称必须是 `HOMEBREW_TAP_TOKEN`。
+
+未配置该 secret 时，发布 job 会跳过 tap 更新并给出 warning，不会再把空 token 传给 `actions/checkout`。手动补更可运行 `Update Homebrew Tap` workflow。`GITHUB_TOKEN` 不能向另一个仓库推送。
