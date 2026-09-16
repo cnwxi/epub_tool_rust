@@ -7,7 +7,8 @@
 <p align="center">
   <a href="https://github.com/cnwxi/epub_tool_rust/releases/latest"><img src="https://img.shields.io/github/v/release/cnwxi/epub_tool_rust" alt="GitHub Releases"></a>
   <a href="https://github.com/cnwxi/epub_tool_rust/stargazers"><img src="https://img.shields.io/github/stars/cnwxi/epub_tool_rust" alt="GitHub stars"></a>
-  <a href="https://github.com/cnwxi/epub_tool_rust/network/members"><img src="https://img.shields.io/github/forks/cnwxi/epub_tool_rust" alt="GitHub forks"></a>
+  <a href="https://github.com/cnwxi/epub_tool_rust/network/members"><img src="https://img.shields.io/github/forks/cnwxi/epub_tool_rust" alt="GitHub forks"><a>
+  <a href="https://github.com/cnwxi/homebrew-tap"><img src="https://img.shields.io/badge/homebrew-cnwxi%2Ftap-FBB040" alt="Homebrew Tap"></a>
 </p>
 
 一个面向 EPUB 批量处理的桌面与 Android 工具，采用 `Tauri 2 + Vue 3 + TypeScript + Rust`。桌面与 Android 共用同一套应用代码和 Rust 任务核心。开发、测试、构建和发布使用 Rust/Node 工具链。文件解密/加密功能处理的是 EPUB 内文件名与资源引用混淆，不提供 [DRM 内容解密](https://github.com/Satsuoni/DeDRM_tools)。
