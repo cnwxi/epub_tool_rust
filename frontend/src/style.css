@@ -143,6 +143,17 @@ input {
   font: inherit;
 }
 
+/* Android WebView paints a blue tap square on interactive controls unless the
+   native tap highlight is explicitly disabled. Keep keyboard focus visible. */
+button {
+  -webkit-tap-highlight-color: transparent;
+  tap-highlight-color: transparent;
+}
+
+button:focus:not(:focus-visible) {
+  outline: none;
+}
+
 #app {
   min-height: 100vh;
   height: 100vh;
@@ -3022,9 +3033,12 @@ input {
     position: sticky;
     top: 0;
     z-index: 40;
-    min-height: 64px;
-    height: 64px;
+    --mobile-safe-top: max(env(safe-area-inset-top, 0px), 28px);
+    min-height: calc(64px + var(--mobile-safe-top));
+    height: calc(64px + var(--mobile-safe-top));
     overflow: visible;
+    padding-top: var(--mobile-safe-top);
+    background: linear-gradient(180deg, rgba(34, 52, 75, 0.98), rgba(45, 67, 94, 0.98));
   }
 
   .side-nav-shell {
@@ -3045,6 +3059,9 @@ input {
     overflow: visible;
     border-right: 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+    background: linear-gradient(180deg, rgba(34, 52, 75, 0.98), rgba(45, 67, 94, 0.98));
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
   .compact-nav-bar {
@@ -3180,9 +3197,6 @@ input {
     height: auto;
     min-height: 100dvh;
     overflow: visible;
-    /* Android WebViews may report a zero safe-area inset while drawing below
-       the status bar. Keep the header and first section clear in that case. */
-    padding-top: max(env(safe-area-inset-top, 0px), 28px);
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
