@@ -73,6 +73,8 @@ pub fn run() {
             #[cfg(target_os = "android")]
             commands::files::export_output,
             #[cfg(target_os = "android")]
+            commands::files::export_log,
+            #[cfg(target_os = "android")]
             commands::files::stage_source_for_task,
             #[cfg(target_os = "android")]
             commands::files::take_opened_sources,

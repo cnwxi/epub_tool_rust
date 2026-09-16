@@ -179,6 +179,10 @@ export function useTaskBridge() {
     if (!isTauriRuntime()) return;
     await invoke("export_output", { sourcePath, destinationPath });
   };
+  const exportLog = async (destinationPath: string): Promise<void> => {
+    if (!isTauriRuntime()) return;
+    await invoke("export_log", { destinationPath });
+  };
   const takeOpenedSources = async (): Promise<string[]> => {
     if (!isTauriRuntime()) return [];
     return invoke<string[]>("take_opened_sources");
@@ -186,6 +190,7 @@ export function useTaskBridge() {
 
   return {
     collectEpubFiles,
+    exportLog,
     exportOutput,
     getLogPath,
     getPersistedStorePath,

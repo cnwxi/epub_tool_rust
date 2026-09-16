@@ -260,6 +260,7 @@ let brandEasterHideTimer = 0;
 
 const {
   collectEpubFiles,
+  exportLog,
   exportOutput,
   stageSourceForTask,
   takeOpenedSources,
@@ -2484,6 +2485,21 @@ const openLogFile = () => {
   void openPath("log.txt");
 };
 
+const exportLogFile = async () => {
+  try {
+    const destination = await save({
+      defaultPath: "epub-tool-log.txt",
+      filters: [{ name: "日志文件", extensions: ["txt", "log"] }],
+    });
+    if (typeof destination === "string") {
+      await exportLog(destination);
+      taskStatus.value = "日志已导出";
+    }
+  } catch (error) {
+    taskStatus.value = toErrorMessage(error, "导出日志失败");
+  }
+};
+
 const openPersistedStoreFile = () => {
   if (!currentPersistedStorePath.value) {
     return;
@@ -2849,7 +2865,8 @@ activeSection.value = normalizeSectionKey(activeSection.value);
               <button class="ghost-btn" type="button" @click="dismissUpdateNotice">
                 稍后
               </button>
-              <button class="primary-btn" v-if="platformCapabilities.supportsOpenPath" type="button" @click="openLatestReleasePage">
+              <button class="primary-btn" v-if="platformCapabilities.supportsOpenPath" type="button"
+                @click="openLatestReleasePage">
                 前往下载
               </button>
             </div>
@@ -2936,9 +2953,9 @@ activeSection.value = normalizeSectionKey(activeSection.value);
           </section>
 
           <template v-if="isTaskSection">
-            <DropZone :supports-directory-scan="platformCapabilities.supportsDirectoryScan" :is-active="dragActive" :file-count="files.length" @drag-state="dragActive = $event"
-              @drop-files="handleDropZoneFiles" @pick-files="pickFiles" @scan-directory="scanInputDirectory"
-              @clear="clearFiles" />
+            <DropZone :supports-directory-scan="platformCapabilities.supportsDirectoryScan" :is-active="dragActive"
+              :file-count="files.length" @drag-state="dragActive = $event" @drop-files="handleDropZoneFiles"
+              @pick-files="pickFiles" @scan-directory="scanInputDirectory" @clear="clearFiles" />
 
             <section ref="masonryBoardRef" class="masonry-board content-animated-grid"
               :style="{ '--masonry-columns': String(masonryColumnsCount) }">
@@ -2983,7 +3000,7 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                       <div v-if="activeTask === 'image_compress'" class="font-advanced-options glass-soft">
                         <label class="font-setting-field font-slider-field">
                           <span class="font-slider-head"><span>JPEG 质量</span><strong>{{ newTaskSettings.jpegQuality
-                          }}</strong></span>
+                              }}</strong></span>
                           <span class="font-slider-control" :style="qualitySliderStyle(newTaskSettings.jpegQuality)">
                             <span class="font-slider-track" aria-hidden="true">
                               <span class="font-slider-fill"></span>
@@ -2995,7 +3012,7 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                         </label>
                         <label class="font-setting-field font-slider-field">
                           <span class="font-slider-head"><span>WebP 质量</span><strong>{{ newTaskSettings.webpQuality
-                          }}</strong></span>
+                              }}</strong></span>
                           <span class="font-slider-control" :style="qualitySliderStyle(newTaskSettings.webpQuality)">
                             <span class="font-slider-track" aria-hidden="true">
                               <span class="font-slider-fill"></span>
@@ -3049,7 +3066,7 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                       <div v-else-if="activeTask === 'image_to_webp'" class="font-advanced-options glass-soft">
                         <label class="font-setting-field font-slider-field">
                           <span class="font-slider-head"><span>WebP 质量</span><strong>{{ newTaskSettings.imageWebpQuality
-                          }}</strong></span>
+                              }}</strong></span>
                           <span class="font-slider-control"
                             :style="qualitySliderStyle(newTaskSettings.imageWebpQuality)">
                             <span class="font-slider-track" aria-hidden="true">
@@ -3115,8 +3132,8 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                         type="button" @click="runSelectedTask">
                         {{ taskRunning ? (isViewingRunningTask ? "处理中..." : "其他任务处理中...") : (isViewingFontLoad
                           ? "正在读取字体..." : (activeTask === "decrypt_font" &&
-                          !platformCapabilities.supportsFontOcr
-                          ? "当前平台不可用" : "开始执行")) }}
+                            !platformCapabilities.supportsFontOcr
+                            ? "当前平台不可用" : "开始执行")) }}
                       </button>
                     </div>
                   </article>
@@ -3253,7 +3270,8 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                         <h3>处理日志</h3>
                       </div>
                       <div class="panel-actions">
-                        <button v-if="platformCapabilities.supportsOpenPath" class="ghost-btn task-action-btn" type="button" @click="openLogFile">
+                        <button v-if="platformCapabilities.supportsOpenPath" class="ghost-btn task-action-btn"
+                          type="button" @click="openLogFile">
                           打开处理日志
                         </button>
                         <button class="ghost-btn task-action-btn" type="button" @click="clearLogs">
@@ -3394,7 +3412,7 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                 <div>
                   <p class="eyebrow">历史</p>
                   <h3>最近任务</h3>
-                  <p class="muted">展示本地已完成任务记录，可直接打开首个输出文件所在目录。</p>
+                  <p class="muted">展示本地已完成任务记录。</p>
                 </div>
                 <div class="panel-actions">
                   <button class="ghost-btn settings-action-btn" type="button" @click="clearHistory">
@@ -3444,7 +3462,8 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                     @click="checkForUpdates()">
                     {{ updateStatus === "checking" ? "检查中..." : "检查更新" }}
                   </button>
-                  <button class="ghost-btn settings-action-btn" v-if="platformCapabilities.supportsOpenPath" type="button" @click="openLatestReleasePage">
+                  <button class="ghost-btn settings-action-btn" v-if="platformCapabilities.supportsOpenPath"
+                    type="button" @click="openLatestReleasePage">
                     下载最新版本
                   </button>
                 </div>
@@ -3476,7 +3495,8 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                 </div>
               </div>
               <div class="settings-preference-grid">
-                <label v-if="platformCapabilities.supportsOpenPath" class="settings-preference-card settings-interactive-card glass-medium">
+                <label v-if="platformCapabilities.supportsOpenPath"
+                  class="settings-preference-card settings-interactive-card glass-medium">
                   <div>
                     <strong>自动打开输出文件夹</strong>
                     <p>任务完成后直接定位到输出目录。</p>
@@ -3486,7 +3506,8 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                     <span class="toggle-switch-track" aria-hidden="true"></span>
                   </span>
                 </label>
-                <label v-if="platformCapabilities.supportsOpenPath" class="settings-preference-card settings-interactive-card glass-medium">
+                <label v-if="platformCapabilities.supportsOpenPath"
+                  class="settings-preference-card settings-interactive-card glass-medium">
                   <div>
                     <strong>自动打开处理日志</strong>
                     <p>便于立刻回看处理细节。</p>
@@ -3516,13 +3537,20 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                 </div>
               </div>
               <div class="settings-path-grid">
-                <button class="settings-log-card settings-path-card glass-medium" :disabled="!currentLogPath || !platformCapabilities.supportsOpenPath"
-                  type="button" @click="currentLogPath && openPath(currentLogPath)">
+                <button class="settings-log-card settings-path-card glass-medium"
+                  :disabled="!currentLogPath || !platformCapabilities.supportsOpenPath" type="button"
+                  @click="currentLogPath && openPath(currentLogPath)">
                   <span>当前日志文件</span>
                   <strong>{{ currentLogPath || "暂未获取日志文件路径。" }}</strong>
                 </button>
-                <button class="settings-log-card settings-path-card glass-medium" :disabled="!currentPersistedStorePath || !platformCapabilities.supportsOpenPath"
-                  type="button" @click="openPersistedStoreFile">
+                <button v-if="isMobile" class="settings-log-card settings-path-card glass-medium" type="button"
+                  @click="exportLogFile">
+                  <span>日志导出</span>
+                  <strong>导出到设备存储</strong>
+                </button>
+                <button class="settings-log-card settings-path-card glass-medium"
+                  :disabled="!currentPersistedStorePath || !platformCapabilities.supportsOpenPath" type="button"
+                  @click="openPersistedStoreFile">
                   <span>当前设置文件</span>
                   <strong>{{ currentPersistedStorePath || "暂未获取设置文件路径。" }}</strong>
                 </button>

@@ -3030,8 +3030,10 @@ button:focus:not(:focus-visible) {
   }
 
   .side-nav-frame {
-    position: sticky;
+    position: fixed;
     top: 0;
+    right: 0;
+    left: 0;
     z-index: 40;
     --mobile-safe-top: max(env(safe-area-inset-top, 0px), 28px);
     min-height: calc(64px + var(--mobile-safe-top));
@@ -3140,11 +3142,11 @@ button:focus:not(:focus-visible) {
 
   .nav-groups {
     position: absolute;
-    top: 64px;
+    top: calc(64px + var(--mobile-safe-top));
     right: 0;
     left: 0;
     display: none;
-    max-height: calc(100dvh - 64px);
+    max-height: calc(100dvh - 64px - var(--mobile-safe-top));
     overflow-y: auto;
     overscroll-behavior: contain;
     padding: 12px 16px 18px;
@@ -3179,6 +3181,7 @@ button:focus:not(:focus-visible) {
     min-height: 0;
     height: auto;
     overflow: visible;
+    margin-top: calc(64px + var(--mobile-safe-top));
   }
 
   .workspace-shell {

@@ -146,6 +146,22 @@ pub async fn export_output(
 
 #[cfg(target_os = "android")]
 #[tauri::command]
+pub async fn export_log(
+    app: AppHandle,
+    services: State<'_, RuntimeServices>,
+    destination_path: String,
+) -> Result<(), String> {
+    let source_path = resolve_log_path(&app)?;
+    let files = services.files();
+    tauri::async_runtime::spawn_blocking(move || {
+        files.export_output(&source_path.to_string_lossy(), &destination_path)
+    })
+    .await
+    .map_err(|e| format!("导出日志失败: {e}"))?
+}
+
+#[cfg(target_os = "android")]
+#[tauri::command]
 pub async fn take_opened_sources(state: State<'_, OpenedSources>) -> Result<Vec<String>, String> {
     state.take()
 }
