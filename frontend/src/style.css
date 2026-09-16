@@ -3035,12 +3035,11 @@ button:focus:not(:focus-visible) {
     right: 0;
     left: 0;
     z-index: 40;
-    --mobile-safe-top: max(env(safe-area-inset-top, 0px), 28px);
-    min-height: calc(64px + var(--mobile-safe-top));
-    height: calc(64px + var(--mobile-safe-top));
+    min-height: var(--mobile-header-height);
+    height: var(--mobile-header-height);
     overflow: visible;
     padding-top: var(--mobile-safe-top);
-    background: linear-gradient(180deg, rgba(34, 52, 75, 0.98), rgba(45, 67, 94, 0.98));
+    background: var(--mobile-nav-background);
   }
 
   .side-nav-shell {
@@ -3061,7 +3060,7 @@ button:focus:not(:focus-visible) {
     overflow: visible;
     border-right: 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.14);
-    background: linear-gradient(180deg, rgba(34, 52, 75, 0.98), rgba(45, 67, 94, 0.98));
+    background: var(--mobile-nav-background);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
@@ -3142,15 +3141,16 @@ button:focus:not(:focus-visible) {
 
   .nav-groups {
     position: absolute;
-    top: calc(64px + var(--mobile-safe-top));
+    /* Positioned inside .side-nav, which is already below the safe area. */
+    top: 64px;
     right: 0;
     left: 0;
     display: none;
-    max-height: calc(100dvh - 64px - var(--mobile-safe-top));
+    max-height: calc(100dvh - var(--mobile-header-height) - env(safe-area-inset-bottom, 0px));
     overflow-y: auto;
     overscroll-behavior: contain;
     padding: 12px 16px 18px;
-    background: linear-gradient(180deg, rgba(34, 52, 75, 0.98), rgba(45, 67, 94, 0.98));
+    background: var(--mobile-nav-background);
     border-bottom: 1px solid rgba(255, 255, 255, 0.14);
     box-shadow: 0 18px 30px rgba(11, 19, 33, 0.24);
   }
@@ -3181,7 +3181,6 @@ button:focus:not(:focus-visible) {
     min-height: 0;
     height: auto;
     overflow: visible;
-    margin-top: calc(64px + var(--mobile-safe-top));
   }
 
   .workspace-shell {
@@ -3196,10 +3195,16 @@ button:focus:not(:focus-visible) {
   }
 
   .app-shell {
+    /* Shared by the fixed header, dropdown and content reservation. Android
+       WebViews may report zero even when drawing behind the status bar. */
+    --mobile-safe-top: max(env(safe-area-inset-top, 0px), 28px);
+    --mobile-header-height: calc(64px + var(--mobile-safe-top));
+    --mobile-nav-background: var(--brand-navy-900);
     grid-template-columns: 1fr;
     height: auto;
     min-height: 100dvh;
     overflow: visible;
+    padding-top: var(--mobile-header-height);
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
