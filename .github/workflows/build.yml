@@ -603,3 +603,65 @@ jobs:
           overwrite_files: true
           prerelease: ${{ inputs.release_type == 'pre_release' }}
           make_latest: ${{ inputs.release_type == 'latest' && 'true' || 'false' }}
+
+  update_homebrew_tap:
+    name: Update Homebrew Tap
+    if: inputs.release && inputs.release_type == 'latest'
+    runs-on: ubuntu-22.04
+    needs:
+      - prepare
+      - publish_release
+    permissions:
+      contents: read
+    steps:
+      - name: Resolve macOS assets and checksums
+        id: asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.prepare.outputs.asset_version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="v${VERSION}"
+          arm_url=$(gh release view "$tag" --repo cnwxi/epub_tool_rust --json assets --jq '.assets[] | select(.name | test("macos_arm64_small\\.dmg$")) | .url' | head -n 1)
+          intel_url=$(gh release view "$tag" --repo cnwxi/epub_tool_rust --json assets --jq '.assets[] | select(.name | test("macos_x64_small\\.dmg$")) | .url' | head -n 1)
+          test -n "$arm_url" -a -n "$intel_url"
+          curl -fsSL "$arm_url" -o /tmp/epub-tool-arm64.dmg
+          curl -fsSL "$intel_url" -o /tmp/epub-tool-x64.dmg
+          echo "sha_arm=$(shasum -a 256 /tmp/epub-tool-arm64.dmg | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "sha_intel=$(shasum -a 256 /tmp/epub-tool-x64.dmg | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v6
+        with:
+          repository: cnwxi/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap-repo
+
+      - name: Update and push cask
+        env:
+          VERSION: ${{ needs.prepare.outputs.asset_version }}
+          SHA_ARM: ${{ steps.asset.outputs.sha_arm }}
+          SHA_INTEL: ${{ steps.asset.outputs.sha_intel }}
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          formula=tap-repo/Casks/epub-tool-newui.rb
+          python - "$formula" <<'PY'
+          import os, re, sys
+          from pathlib import Path
+          p = Path(sys.argv[1]); text = p.read_text()
+          text = re.sub(r'(?m)^  version ".*"$', f'  version "{os.environ["VERSION"]}"', text, count=1)
+          text = re.sub(r'(?ms)^  sha256 .+?(?=\n  url )', f'  sha256 arm: "{os.environ["SHA_ARM"]}",\n         intel: "{os.environ["SHA_INTEL"]}"', text, count=1)
+          text = re.sub(r'(?m)^  url ".*"$', '  url "https://github.com/cnwxi/epub_tool_rust/releases/download/v#{version}/Epub.Tool.NewUI_#{version}_macos_#{arch}_small.dmg"', text, count=1)
+          p.write_text(text)
+          PY
+          cd tap-repo
+          git config user.name github-actions[bot]
+          git config user.email github-actions[bot]@users.noreply.github.com
+          git remote set-url origin "https://x-access-token:${TAP_TOKEN}@github.com/cnwxi/homebrew-tap.git"
+          git add Casks/epub-tool-newui.rb
+          if ! git diff --staged --quiet; then
+            git commit -m "Update epub-tool-newui to v${VERSION}"
+            git push origin main
+          fi

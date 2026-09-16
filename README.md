@@ -49,6 +49,19 @@
 
 ## 安装
 
+### macOS（Homebrew）
+
+```bash
+brew tap cnwxi/tap
+brew install --cask epub-tool-newui
+```
+
+更新：
+
+```bash
+brew upgrade --cask epub-tool-newui
+```
+
 ### 手动下载
 
 1. 从 [Releases](https://github.com/cnwxi/epub_tool_rust/releases/latest) 下载对应系统的安装包或 Android APK。
