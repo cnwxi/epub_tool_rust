@@ -31,6 +31,182 @@ on:
         default: ""
 
 jobs:
+  prepare:
+    name: Resolve Release Version
+    runs-on: ubuntu-22.04
+    outputs:
+      asset_version: ${{ steps.release_version.outputs.asset_version }}
+      release_version: ${{ steps.release_version.outputs.release_version }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Resolve release version
+        id: release_version
+        shell: bash
+        run: |
+          app_version=$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -n 1)
+          test -n "$app_version"
+          asset_version="${{ inputs.version }}"
+          asset_version="${asset_version#v}"
+          asset_version="${asset_version:-$app_version}"
+          echo "asset_version=$asset_version" >> "$GITHUB_OUTPUT"
+          echo "release_version=v$asset_version" >> "$GITHUB_OUTPUT"
+
+  android:
+    name: Android ${{ matrix.target.abi }} Release APK
+    runs-on: ubuntu-24.04
+    needs: [prepare]
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - {tauri_target: aarch64, rust_target: aarch64-linux-android, abi: arm64-v8a}
+          - {tauri_target: armv7, rust_target: armv7-linux-androideabi, abi: armeabi-v7a}
+          - {tauri_target: x86_64, rust_target: x86_64-linux-android, abi: x86_64}
+          - {tauri_target: i686, rust_target: i686-linux-android, abi: x86}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: ".nvmrc"
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: dtolnay/rust-toolchain@1.97.1
+        with:
+          targets: ${{ matrix.target.rust_target }}
+      - name: Configure Android SDK
+        shell: bash
+        run: |
+          sdk_root="/usr/local/lib/android/sdk"
+          test -x "$sdk_root/cmdline-tools/latest/bin/sdkmanager"
+          echo "ANDROID_HOME=$sdk_root" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$sdk_root" >> "$GITHUB_ENV"
+          echo "NDK_HOME=$sdk_root/ndk/29.0.14206865" >> "$GITHUB_ENV"
+          echo "$sdk_root/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$sdk_root/platform-tools" >> "$GITHUB_PATH"
+          "$sdk_root/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-36" "build-tools;35.0.0" "ndk;29.0.14206865"
+      - name: Install JavaScript dependencies
+        run: |
+          npm ci
+          npm --prefix frontend ci
+      - name: Initialize generated Android project
+        run: npm run tauri -- android init --ci --skip-targets-install
+      - name: Build release APK
+        shell: bash
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.internal.http.connectionTimeout=120000 -Dorg.gradle.internal.http.socketTimeout=120000"
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            echo "Android build attempt $attempt"
+            if cargo run --locked --manifest-path xtask/Cargo.toml -- mobile-build android ${{ matrix.target.tauri_target }} --split-per-abi --apk --ci --verbose; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Android build failed (attempt $attempt), waiting before retry..."
+              sleep $((attempt * 20))
+            fi
+          done
+          exit 1
+      - name: Verify APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=$(find src-tauri/gen/android/app/build/outputs/apk -type f -path '*/release/*.apk' -print -quit)
+          if [ -z "$apk" ]; then
+            echo '未找到 release APK；实际输出目录如下：' >&2
+            find src-tauri/gen/android/app/build/outputs -type f -print >&2 || true
+            exit 1
+          fi
+          echo "验证 APK: $apk"
+          aapt2=$(find "$ANDROID_HOME/build-tools" -type f -name aapt2 | sort -V | tail -n 1)
+          test -x "$aapt2"
+          badging=$("$aapt2" dump badging "$apk")
+          echo "$badging"
+          cargo_version=$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -n 1)
+          config_version=$(node -p 'require("./src-tauri/tauri.conf.json").version ?? ""')
+          if [ "$cargo_version" != "$config_version" ]; then
+            echo "版本不一致或 Tauri 配置缺少 version: Cargo=$cargo_version, Tauri=$config_version" >&2
+            exit 1
+          fi
+          apkanalyzer=$(find "$ANDROID_HOME/cmdline-tools" "$ANDROID_HOME/tools" -type f -name apkanalyzer 2>/dev/null | sort -V | tail -n 1 || true)
+          apk_version=""
+          if [ -n "$apkanalyzer" ] && [ -x "$apkanalyzer" ]; then
+            apk_version=$("$apkanalyzer" manifest version-name "$apk" 2>/dev/null | tr -d '\r' | sed -n '1p' || true)
+          fi
+          apk_version=$(printf '%s' "$apk_version" | sed 's/[[:space:]]*$//')
+          if [ -z "$apk_version" ]; then
+            apk_version=$(sed -n "s/^package:.*versionName='\([^']*\)'.*/\1/p" <<<"$badging" | head -n 1)
+          fi
+          if [ -z "$apk_version" ]; then
+            manifest_tree=$("$aapt2" dump xmltree "$apk" AndroidManifest.xml 2>/dev/null || true)
+            apk_version=$(sed -n 's/.*android:versionName.*="\([^"]*\)".*/\1/p' <<<"$manifest_tree" | head -n 1)
+          fi
+          if [ -z "$apk_version" ]; then
+            echo "无法从 APK 读取 versionName；aapt2 输出如下：" >&2
+            echo "$badging" >&2
+            exit 1
+          fi
+          if [ "$apk_version" != "$cargo_version" ]; then
+            echo "APK versionName=$apk_version 与 Cargo 版本 $cargo_version 不一致" >&2
+            exit 1
+          fi
+          if ! grep -Eq "application-icon-|^application:.*icon='[^']+'" <<<"$badging"; then
+            echo 'APK 缺少可用的 application icon badging 记录' >&2
+            exit 1
+          fi
+      - name: Sign Android release APK
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          apk=$(find src-tauri/gen/android/app/build/outputs/apk -type f -path '*/release/*.apk' -print -quit)
+          keystore="$RUNNER_TEMP/android-release.keystore"
+          if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            test -n "${ANDROID_KEYSTORE_PASSWORD:-}" -a -n "${ANDROID_KEY_ALIAS:-}" -a -n "${ANDROID_KEY_PASSWORD:-}"
+            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore"
+            store_password="$ANDROID_KEYSTORE_PASSWORD"; key_alias="$ANDROID_KEY_ALIAS"; key_password="$ANDROID_KEY_PASSWORD"
+          else
+            echo "未配置 Android release keystore；拒绝生成临时签名 APK。请配置 ANDROID_KEYSTORE_BASE64、ANDROID_KEYSTORE_PASSWORD、ANDROID_KEY_ALIAS 和 ANDROID_KEY_PASSWORD。" >&2
+            exit 1
+          fi
+          apksigner=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)
+          "$apksigner" sign --ks "$keystore" --ks-pass "pass:$store_password" --ks-key-alias "$key_alias" --key-pass "pass:$key_password" "$apk"
+          "$apksigner" verify --verbose "$apk"
+      - name: Upload Android compile artifact
+        if: ${{ !inputs.release }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-${{ matrix.target.abi }}-release
+          path: src-tauri/gen/android/app/build/outputs/apk/*/release/**/*.apk
+          if-no-files-found: error
+      - name: Prepare Android release asset
+        if: inputs.release
+        shell: bash
+        env:
+          ASSET_VERSION: ${{ needs.prepare.outputs.asset_version }}
+          ABI: ${{ matrix.target.abi }}
+        run: |
+          set -euo pipefail
+          apk=$(find src-tauri/gen/android/app/build/outputs/apk -type f -path '*/release/*.apk' -print -quit)
+          mkdir -p release-assets
+          cp "$apk" "release-assets/Epub.Tool.Android_${ASSET_VERSION}_android_${ABI}_release.apk"
+      - name: Upload Android release asset
+        if: inputs.release
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-assets-android-${{ matrix.target.abi }}
+          path: release-assets
+          if-no-files-found: error
+
+
   build:
     name: Build ${{ matrix.target.platform }}-${{ matrix.target.arch }}-${{ matrix.ocr.variant }}
     runs-on: ${{ matrix.target.runner }}
@@ -332,6 +508,7 @@ jobs:
     runs-on: ubuntu-22.04
     needs:
       - build
+      - android
     permissions:
       contents: write
     steps:
@@ -396,7 +573,11 @@ jobs:
           cat >> release-body.md <<'MARKDOWN'
           ## 安装
 
-          当前发布包内置 small OCR 模型，速度更快，安装包体积更小。
+          桌面发布包内置 small OCR 模型；Android 包不包含字体/OCR 功能。
+
+          ### Android
+
+          下载设备 ABI 对应的 APK，现代设备通常选择 `arm64-v8a`。长期覆盖升级需配置固定 Android keystore。
 
           ### macOS
 
@@ -422,3 +603,65 @@ jobs:
           overwrite_files: true
           prerelease: ${{ inputs.release_type == 'pre_release' }}
           make_latest: ${{ inputs.release_type == 'latest' && 'true' || 'false' }}
+
+  update_homebrew_tap:
+    name: Update Homebrew Tap
+    if: inputs.release && inputs.release_type == 'latest'
+    runs-on: ubuntu-22.04
+    needs:
+      - prepare
+      - publish_release
+    permissions:
+      contents: read
+    steps:
+      - name: Resolve macOS assets and checksums
+        id: asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.prepare.outputs.asset_version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="v${VERSION}"
+          arm_url=$(gh release view "$tag" --repo cnwxi/epub_tool_rust --json assets --jq '.assets[] | select(.name | test("macos_arm64_small\\.dmg$")) | .url' | head -n 1)
+          intel_url=$(gh release view "$tag" --repo cnwxi/epub_tool_rust --json assets --jq '.assets[] | select(.name | test("macos_x64_small\\.dmg$")) | .url' | head -n 1)
+          test -n "$arm_url" -a -n "$intel_url"
+          curl -fsSL "$arm_url" -o /tmp/epub-tool-arm64.dmg
+          curl -fsSL "$intel_url" -o /tmp/epub-tool-x64.dmg
+          echo "sha_arm=$(shasum -a 256 /tmp/epub-tool-arm64.dmg | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "sha_intel=$(shasum -a 256 /tmp/epub-tool-x64.dmg | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v6
+        with:
+          repository: cnwxi/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap-repo
+
+      - name: Update and push cask
+        env:
+          VERSION: ${{ needs.prepare.outputs.asset_version }}
+          SHA_ARM: ${{ steps.asset.outputs.sha_arm }}
+          SHA_INTEL: ${{ steps.asset.outputs.sha_intel }}
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          formula=tap-repo/Casks/epub-tool-newui.rb
+          python - "$formula" <<'PY'
+          import os, re, sys
+          from pathlib import Path
+          p = Path(sys.argv[1]); text = p.read_text()
+          text = re.sub(r'(?m)^  version ".*"$', f'  version "{os.environ["VERSION"]}"', text, count=1)
+          text = re.sub(r'(?ms)^  sha256 .+?(?=\n  url )', f'  sha256 arm: "{os.environ["SHA_ARM"]}",\n         intel: "{os.environ["SHA_INTEL"]}"', text, count=1)
+          text = re.sub(r'(?m)^  url ".*"$', '  url "https://github.com/cnwxi/epub_tool_rust/releases/download/v#{version}/Epub.Tool.NewUI_#{version}_macos_#{arch}_small.dmg"', text, count=1)
+          p.write_text(text)
+          PY
+          cd tap-repo
+          git config user.name github-actions[bot]
+          git config user.email github-actions[bot]@users.noreply.github.com
+          git remote set-url origin "https://x-access-token:${TAP_TOKEN}@github.com/cnwxi/homebrew-tap.git"
+          git add Casks/epub-tool-newui.rb
+          if ! git diff --staged --quiet; then
+            git commit -m "Update epub-tool-newui to v${VERSION}"
+            git push origin main
+          fi

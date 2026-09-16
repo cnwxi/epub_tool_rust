@@ -2,6 +2,8 @@ use crate::{
     commands::{self, PersistedStore},
     runtime::RuntimeServices,
 };
+#[cfg(target_os = "android")]
+use tauri::Emitter;
 use tauri::Manager;
 
 #[cfg(target_os = "macos")]
@@ -10,6 +12,7 @@ use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
 #[cfg(target_os = "windows")]
 use window_vibrancy::{apply_blur, apply_mica};
 
+#[cfg(not(target_os = "android"))]
 fn setup_window_effects(app: &tauri::App) -> Result<(), String> {
     let window = app
         .get_webview_window("main")
@@ -40,11 +43,16 @@ fn setup_window_effects(app: &tauri::App) -> Result<(), String> {
 }
 
 pub fn run() {
-    let app = tauri::Builder::default()
-        .plugin(tauri_plugin_dialog::init())
+    let builder = tauri::Builder::default().plugin(tauri_plugin_dialog::init());
+    #[cfg(target_os = "android")]
+    let builder = builder.plugin(tauri_plugin_fs::init());
+    let app = builder
         .setup(|app| {
             app.manage(PersistedStore::load(app.handle()));
             app.manage(RuntimeServices::new(app.handle())?);
+            #[cfg(target_os = "android")]
+            app.manage(commands::files::OpenedSources::new());
+            #[cfg(not(target_os = "android"))]
             setup_window_effects(app)?;
             Ok(())
         })
@@ -62,9 +70,29 @@ pub fn run() {
             commands::tasks::run_epub_task,
             commands::state::save_persisted_state,
             commands::files::validate_output_directory,
+            #[cfg(target_os = "android")]
+            commands::files::export_output,
+            #[cfg(target_os = "android")]
+            commands::files::export_log,
+            #[cfg(target_os = "android")]
+            commands::files::stage_source_for_task,
+            #[cfg(target_os = "android")]
+            commands::files::take_opened_sources,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
 
-    app.run(|_, _| {});
+    app.run(|_app_handle, _event| {
+        #[cfg(target_os = "android")]
+        if let tauri::RunEvent::Opened { urls } = _event {
+            let sources = urls
+                .into_iter()
+                .map(|url| url.to_string())
+                .collect::<Vec<_>>();
+            _app_handle
+                .state::<commands::files::OpenedSources>()
+                .extend(sources.iter().cloned());
+            let _ = _app_handle.emit("opened", sources);
+        }
+    });
 }

@@ -1023,10 +1023,9 @@ dependencies = [
 
 [[package]]
 name = "epub_tool_newui"
-version = "26.8.25"
+version = "26.9.16"
 dependencies = [
  "epub_tool_core",
- "libc",
  "pbjson",
  "pbjson-build",
  "percent-encoding",
@@ -1038,6 +1037,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
+ "tauri-plugin-fs",
  "window-vibrancy",
 ]
 

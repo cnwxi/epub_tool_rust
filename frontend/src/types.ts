@@ -150,7 +150,7 @@ export interface EngineStatus {
 }
 
 export interface PlatformCapabilities {
-  platform: "linux" | "macos" | "windows" | "unknown";
+  platform: "android" | "linux" | "macos" | "windows" | "unknown";
   runtime: "inProcess" | "browser";
   supportsDirectoryPicker: boolean;
   supportsDirectoryScan: boolean;

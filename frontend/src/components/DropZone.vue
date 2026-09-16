@@ -2,6 +2,7 @@
 defineProps<{
   isActive: boolean;
   fileCount: number;
+  supportsDirectoryScan: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -43,16 +44,16 @@ const handleDrop = (event: DragEvent) => {
   >
     <div>
       <p class="eyebrow">输入源</p>
-      <h2>拖入 EPUB、文件夹或直接从系统选择</h2>
+      <h2>{{ supportsDirectoryScan ? "拖入 EPUB、文件夹或直接从系统选择" : "从系统选择 EPUB" }}</h2>
       <p class="muted">
-        支持单文件、多文件、拖拽文件夹或目录扫描。当前队列 {{ fileCount }} 个文件。
+        {{ supportsDirectoryScan ? "支持单文件、多文件、拖拽文件夹或目录扫描。" : "支持从系统文件选择器添加多个 EPUB。" }}当前队列 {{ fileCount }} 个文件。
       </p>
     </div>
     <div class="dropzone-actions">
       <button class="primary-btn" type="button" @click="emit('pick-files')">
         选择文件
       </button>
-      <button class="secondary-btn" type="button" @click="emit('scan-directory')">
+      <button v-if="supportsDirectoryScan" class="secondary-btn" type="button" @click="emit('scan-directory')">
         扫描目录
       </button>
       <button class="ghost-btn task-action-btn" type="button" @click="emit('clear')">

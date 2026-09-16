@@ -33,15 +33,16 @@ const normalizeEngineResponse = (response: EngineResponse): EngineResponse => ({
 });
 
 export function useTaskBridge() {
+  const isMobileFrontend = import.meta.env.MODE === "mobile";
   const platformCapabilities = shallowRef<PlatformCapabilities>({
-    platform: "unknown",
+    platform: isMobileFrontend ? "android" : "unknown",
     runtime: "browser",
     supportsDirectoryPicker: false,
     supportsDirectoryScan: false,
     supportsOpenPath: false,
-    requiresOutputExport: false,
+    requiresOutputExport: isMobileFrontend,
     supportsFileAssociations: false,
-    supportsFontOcr: false,
+    supportsFontOcr: !isMobileFrontend,
   });
 
   const refreshPlatformCapabilities = async (): Promise<PlatformCapabilities> => {
@@ -58,7 +59,7 @@ export function useTaskBridge() {
     onEvent: (event: EngineEvent) => void,
   ): Promise<EngineResponse> => {
     if (!isTauriRuntime()) {
-      throw new Error("当前环境不支持该功能，请在桌面应用中使用。");
+      throw new Error("当前环境不支持该功能，请在应用中使用。");
     }
 
     const channel = new Channel<EngineEvent>((event) => {
@@ -77,7 +78,7 @@ export function useTaskBridge() {
     onEvent: (event: EngineEvent) => void,
   ): Promise<EngineResponse> => {
     if (!isTauriRuntime()) {
-      throw new Error("当前环境不支持该功能，请在桌面应用中使用。");
+      throw new Error("当前环境不支持该功能，请在应用中使用。");
     }
     const channel = new Channel<EngineEvent>((event) => {
       onEvent(normalizeEngineEvent(event));
@@ -171,8 +172,27 @@ export function useTaskBridge() {
     await invoke("save_persisted_state", { key, value });
   };
 
+  const stageSourceForTask = async (sourcePath: string, extension: string): Promise<string> => {
+    if (!isTauriRuntime()) return sourcePath;
+    return invoke<string>("stage_source_for_task", { sourcePath, extension });
+  };
+  const exportOutput = async (sourcePath: string, destinationPath: string): Promise<void> => {
+    if (!isTauriRuntime()) return;
+    await invoke("export_output", { sourcePath, destinationPath });
+  };
+  const exportLog = async (destinationPath: string): Promise<void> => {
+    if (!isTauriRuntime()) return;
+    await invoke("export_log", { destinationPath });
+  };
+  const takeOpenedSources = async (): Promise<string[]> => {
+    if (!isTauriRuntime()) return [];
+    return invoke<string[]>("take_opened_sources");
+  };
+
   return {
     collectEpubFiles,
+    exportLog,
+    exportOutput,
     getLogPath,
     getPersistedStorePath,
     getEngineStatus,
@@ -185,6 +205,8 @@ export function useTaskBridge() {
     resolveInputSources,
     runTask,
     savePersistedState,
+    stageSourceForTask,
+    takeOpenedSources,
     platformCapabilities,
     validateOutputDirectory,
   };

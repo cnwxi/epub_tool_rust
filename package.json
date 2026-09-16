@@ -10,10 +10,16 @@
     "dev:bundle-assets": "npm run build:verify-ocr-model",
     "dev:frontend": "npm --prefix frontend run dev -- --host",
     "dev:desktop": "npm run dev:bundle-assets && npm run dev:frontend",
+    "dev:mobile": "npm --prefix frontend run dev -- --mode mobile --host",
+    "build:mobile-assets": "npm --prefix frontend run build:mobile",
     "build:bundle-assets": "npm run build && npm run build:verify-ocr-model",
     "tauri": "tauri",
     "tauri:dev": "cargo run --locked --manifest-path xtask/Cargo.toml -- desktop-dev",
-    "tauri:build": "cargo run --locked --manifest-path xtask/Cargo.toml -- desktop-build"
+    "tauri:build": "cargo run --locked --manifest-path xtask/Cargo.toml -- desktop-build",
+    "tauri:android:init": "npm run tauri -- android init",
+    "tauri:android:dev": "cargo run --locked --manifest-path xtask/Cargo.toml -- mobile-dev android",
+    "tauri:android:build": "cargo run --locked --manifest-path xtask/Cargo.toml -- mobile-build android",
+    "tauri:android:check": "npm run tauri -- android build --debug"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.2.5"

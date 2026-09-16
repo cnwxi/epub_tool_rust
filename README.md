@@ -1,4 +1,4 @@
-# Epub Tool
+# Epub Tool Rust
 
 <p align="center">
   <img src="./assets/img/icon.ico" alt="Epub Tool Icon" width="120">
@@ -7,17 +7,17 @@
 <p align="center">
   <a href="https://github.com/cnwxi/epub_tool_rust/releases/latest"><img src="https://img.shields.io/github/v/release/cnwxi/epub_tool_rust" alt="GitHub Releases"></a>
   <a href="https://github.com/cnwxi/epub_tool_rust/stargazers"><img src="https://img.shields.io/github/stars/cnwxi/epub_tool_rust" alt="GitHub stars"></a>
-  <a href="https://github.com/cnwxi/epub_tool_rust/network/members"><img src="https://img.shields.io/github/forks/cnwxi/epub_tool_rust" alt="GitHub forks"></a>
+  <a href="https://github.com/cnwxi/epub_tool_rust/network/members"><img src="https://img.shields.io/github/forks/cnwxi/epub_tool_rust" alt="GitHub forks"><a>
+  <a href="https://github.com/cnwxi/homebrew-tap"><img src="https://img.shields.io/badge/homebrew-cnwxi%2Ftap-FBB040" alt="Homebrew Tap"></a>
 </p>
 
-一个面向 EPUB 批量处理的桌面工具，采用 `Tauri 2 + Vue 3 + TypeScript + Rust`。Windows、macOS、Linux 均在应用进程内执行 Rust 任务核心。开发、测试、构建和发布使用 Rust/Node 工具链。文件解密/加密功能处理的是 EPUB 内文件名与资源引用混淆，不提供 [DRM 内容解密](https://github.com/Satsuoni/DeDRM_tools)。
+一个面向 EPUB 批量处理的桌面与 Android 工具，采用 `Tauri 2 + Vue 3 + TypeScript + Rust`。桌面与 Android 共用同一套应用代码和 Rust 任务核心。开发、测试、构建和发布使用 Rust/Node 工具链。文件解密/加密功能处理的是 EPUB 内文件名与资源引用混淆，不提供 [DRM 内容解密](https://github.com/Satsuoni/DeDRM_tools)。
 
 ![Epub Tool 桌面端界面预览](./assets/img/epub_tool_newui.png)
 
 ## 相关仓库
 
-- [Epub Tool 桌面端](https://github.com/cnwxi/epub_tool_rust)
-- [Epub Tool Android 端](https://github.com/cnwxi/epub_tool_android)
+- [Epub Tool 桌面与 Android 应用](https://github.com/cnwxi/epub_tool_rust)
 - [epub_tool_core 共享 Rust 核心](https://github.com/cnwxi/epub_tool_core)
 
 ## 支持的处理能力：
@@ -35,7 +35,7 @@
 
 ## 当前实现
 
-各桌面平台复用统一任务界面、类型化任务协议、进程内运行时和 Rust 业务核心。平台差异只集中在权限与文件适配层，桌面端直接负责目录扫描、路径打开和输出文件访问。
+桌面与 Android 复用统一任务协议、进程内运行时和 Rust 业务核心。平台差异只集中在权限与文件适配层，桌面端直接负责目录扫描、路径打开和输出文件访问。
 
 字体扫描、加密和解密共用 `EPUB/XHTML/CSS → Stylo computed style → FontRequest → FontFaceResolver → 字符级字体分配` 流水线。Stylo 是唯一生产 CSS 选择器、级联与计算样式路径；字体容器支持 TTF、OTF、WOFF、WOFF2。桌面端携带 ONNX OCR 模型并启用字体解密，低置信度结果会保留 Top-K 候选、置信度和字形图片供复核，不会猜测替换。
 
@@ -46,12 +46,26 @@
 | Windows | x64、arm64 | 进程内 | NSIS |
 | macOS | x64、arm64 | 进程内 | app、DMG |
 | Linux | x64、arm64 | 进程内 | deb、rpm |
+| Android | arm64-v8a、armeabi-v7a、x86_64、x86 | 进程内 | APK |
 
 ## 安装
 
+### macOS（Homebrew）
+
+```bash
+brew tap cnwxi/tap
+brew install --cask epub-tool-newui
+```
+
+更新：
+
+```bash
+brew upgrade --cask epub-tool-newui
+```
+
 ### 手动下载
 
-1. 从 [Releases](https://github.com/cnwxi/epub_tool/releases/latest) 下载对应系统的桌面包。
+1. 从 [Releases](https://github.com/cnwxi/epub_tool_rust/releases/latest) 下载对应系统的安装包或 Android APK。
 2. 安装并启动应用。
 
 ## 使用方式
@@ -61,6 +75,8 @@
 3. 根据当前任务选择输出目录。
 4. 根据任务配置专属参数：字体任务需选择每本书的目标字体 family；图片任务可调整质量；`replace_cover` 需为每本书选择封面；`chinese_convert` 可选择转换方向。
 5. 点击“开始执行”，在结果区查看摘要、失败原因、跳过原因，并按需打开输出目录或日志文件。
+
+Android 使用系统文件选择器导入 EPUB，在结果区点击“导出”保存到用户选择的位置；不支持目录扫描、直接打开路径或字体任务。封面选择、图像转换、简繁转换与文件处理共用桌面任务管线。
 
 ## 日志与输出
 
@@ -77,7 +93,15 @@
 
 ## 本地开发与编译
 
-详见 [本地开发指南](./assets/docs/LOCAL_DEVELOPMENT.md)。其中包括 Linux、macOS、Windows 的
+Android 初始化、开发和构建命令为：
+
+```bash
+npm run tauri:android:init -- --ci
+npm run tauri:android:dev
+npm run tauri:android:build -- aarch64 --split-per-abi --apk --ci
+```
+
+详见 [本地开发指南](./assets/docs/LOCAL_DEVELOPMENT.md)。其中包括 Android、Linux、macOS、Windows 的
 系统依赖，Node.js 与 Rust 环境配置、应用启动、Rust 测试、安装包构建、OCR 资源校验及
 `cargo metadata` 报错排查。
 
@@ -86,7 +110,7 @@
 - `frontend/`：Vue 3 跨平台前端
 - `src-tauri/`：Tauri 壳层、平台运行时、ONNX/OpenCC 资源与打包配置
 - `epub_tool_core`：固定 Git tag 的共享 Rust EPUB 核心；本地联调通过 Cargo `[patch]` 覆盖
-- `xtask/`：OCR 模型校验、macOS ONNX Runtime 准备、桌面构建和发布维护工具
+- `xtask/`：Android 构建与图标生成、OCR 模型校验、macOS ONNX Runtime 准备、桌面构建和发布维护工具
 - `proto/`：Tauri IPC Protobuf wire contract
 - `assets/docs/`：架构、构建、协议与发布说明
 - `assets/img/`：README、前端与应用打包共用图像资源

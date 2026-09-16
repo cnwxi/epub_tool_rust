@@ -1,10 +1,10 @@
-# AGENTS.md
+# Repository Guidelines
 
 本文件为 Codex 在当前仓库中工作时提供仓库级指引。
 
 ## 项目概览
 
-Epub Tool 是面向 EPUB 批量处理的桌面应用，技术栈为 Tauri 2、Vue 3、TypeScript 与 Rust。Windows、macOS、Linux 均在应用进程内执行同一个 Rust 业务核心。
+Epub Tool 是面向 EPUB 批量处理的桌面与 Android 应用，技术栈为 Tauri 2、Vue 3、TypeScript 与 Rust。Windows、macOS、Linux、Android 均在应用进程内执行同一个 Rust 业务核心。
 
 当前任务类型：
 
@@ -32,7 +32,7 @@ npm run tauri:dev
 # 仅前端；没有 Tauri Runtime，不能执行任务
 npm run dev
 
-# Rust 核心与集成测试
+# 应用 Rust 单元与适配回归测试
 cargo test --locked --manifest-path src-tauri/Cargo.toml
 
 # Rust 维护工具测试
@@ -77,7 +77,7 @@ Vue / generated TypeScript protobuf types
 - `proto/epub_tool/v1/engine.proto`：Tauri IPC wire contract 的唯一来源。
 - `epub_tool_core`：固定到 Git tag 的共享 Rust crate，提供类型化任务 contract 与 EPUB 核心。
 - `src-tauri/src/runtime/`：全平台进程内运行时、平台能力、路径与核心资源配置。
-- `xtask/`：OCR 模型校验、macOS ONNX Runtime 准备、桌面构建和发布维护工具。
+- `xtask/`：Android 构建与图标生成、OCR 模型校验、macOS ONNX Runtime 准备、桌面构建和发布维护工具。
 - `src-tauri/bundle-resources/`：OCR 模型与 OpenCC 运行资源。
 - `assets/docs/`：架构、协议、构建、发布和 UI 规范。
 
@@ -85,7 +85,7 @@ Vue / generated TypeScript protobuf types
 
 - Protobuf 只属于 IPC 边界。业务服务不得接收 wire message、动态 JSON 或 Tauri 类型。
 - 新任务必须在 `epub_tool_core` 中实现统一 `EpubTask`，通过 `TaskSpec`/`TaskOptions` 输入并产生 `TaskEvent`/`TaskResult`。
-- 所有桌面平台必须通过 `spawn_blocking` 调用同一个进程内 `EngineRuntime`，不得新增任务子进程、sidecar 或动态适配层。
+- 所有平台必须通过 `spawn_blocking` 调用同一个进程内 `EngineRuntime`，不得新增任务子进程、sidecar 或动态适配层。
 - `epub_tool_core` 的 `backend/font/font_style.rs` 中的 Stylo 是生产环境唯一的 CSS 选择器、级联与计算样式引擎。不得添加第二套 cascade、旧规则 fallback 或按节点静默降级。
 - 字体扫描、加密和解密必须复用 `FontEncryptionPlan` 及其字符级字体分配结果。
 - 字体管线必须保留 family stack、weight、style、stretch、`unicode-range`、多 `src`、来源顺序、继承、变量、`!important` 与复杂选择器语义。
@@ -100,6 +100,16 @@ Vue / generated TypeScript protobuf types
 | Windows | x64、arm64 | 进程内 | 启用 | NSIS |
 | macOS | x64、arm64 | 进程内 | 启用 | app、DMG |
 | Linux | x64、arm64 | 进程内 | 启用 | deb、rpm |
+| Android | arm64-v8a、armeabi-v7a、x86_64、x86 | 进程内 | 禁用 | APK |
+
+## Android 集成
+
+- 桌面和 Android 共用根目录 `frontend/`、`src-tauri/`、`proto/` 与 `xtask/`，不得维护第二个应用入口或 Android 子项目。
+- `npm run tauri:android:init` 初始化原生工程；`npm run tauri:android:dev` 开发，`npm run tauri:android:build -- aarch64 --apk --ci` 构建。工具链配置见 `assets/docs/LOCAL_DEVELOPMENT.md`。
+- `PlatformFiles` 负责 Android URI 暂存与导出、桌面路径与目录操作；核心不接收 URI 或 Tauri 类型。
+- Android 禁用 core 的 `font` feature，不打包 OCR 模型；OpenCC 资源解包到应用数据目录。界面根据能力隐藏字体、目录扫描和路径打开入口。
+- 生成目录 `src-tauri/gen/android/` 不提交，构建不依赖原 Android 仓库。
+- `src-tauri/tauri.conf.json` 的 `version` 必须与 `src-tauri/Cargo.toml` 的版本一致；Android 不使用 Cargo 版本回退，缺少该字段会生成 `versionName=1.0`。
 
 ## 行为约定
 
@@ -134,6 +144,8 @@ npm run build:verify-ocr-model
 ```
 
 桌面安装包仍需在目标系统上做启动、任务执行、输出、日志和真实 EPUB 回归；代码签名、公证和商店发布未执行时必须明确说明。
+
+测试中的 `runtime/files/staging` 在宿主机执行 Android 使用的实际流暂存函数；不需要伪造 `cfg(mobile)`。核心集成回归位于独立 core 仓库的 `tests/core_regression.rs`。本轮已验证范围与环境限制见 `assets/docs/ANDROID_MERGE_VALIDATION.md`。
 
 ## Codex 执行规范
 

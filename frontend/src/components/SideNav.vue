@@ -109,16 +109,10 @@ watch(
     <div class="compact-nav-bar">
       <button class="compact-brand-button" type="button" @click="selectSection('overview')">
         <span class="compact-brand-name">Epub Tool</span>
-        <span class="compact-brand-caption">EPUB</span>
+        <span class="compact-brand-caption">RUST</span>
       </button>
-      <button
-        class="compact-nav-menu-toggle"
-        type="button"
-        aria-label="切换导航菜单"
-        aria-controls="compact-navigation"
-        :aria-expanded="compactMenuOpen"
-        @click="compactMenuOpen = !compactMenuOpen"
-      >
+      <button class="compact-nav-menu-toggle" type="button" aria-label="切换导航菜单" aria-controls="compact-navigation"
+        :aria-expanded="compactMenuOpen" @click="compactMenuOpen = !compactMenuOpen">
         <span aria-hidden="true"></span>
         <span aria-hidden="true"></span>
         <span aria-hidden="true"></span>
@@ -126,13 +120,8 @@ watch(
     </div>
 
     <section class="nav-group nav-group-brand nav-animated-block">
-      <div
-        class="brand-block"
-        :class="{ 'brand-block-easter-active': props.brandEasterActive }"
-        role="button"
-        tabindex="0"
-        title="7连击召唤Thor"
-        @click="props.handleBrandEasterClick"
+      <div class="brand-block" :class="{ 'brand-block-easter-active': props.brandEasterActive }" role="button"
+        tabindex="0" title="7连击召唤Thor" @click="props.handleBrandEasterClick"
         @keydown.enter.prevent="props.triggerBrandEasterAnimation"
         @keydown.space.prevent="props.triggerBrandEasterAnimation">
         <div class="brand-content">
@@ -162,14 +151,13 @@ watch(
           </span>
         </button>
         <nav v-show="overviewOpen" class="nav-list">
-          <button v-if="overviewItem" class="nav-item" :class="{ active: overviewItem.key === active }"
-            type="button" @click="selectSection(overviewItem.key)">
+          <button v-if="overviewItem" class="nav-item" :class="{ active: overviewItem.key === active }" type="button"
+            @click="selectSection(overviewItem.key)">
             <span>{{ overviewItem.label }}</span>
           </button>
           <button class="nav-item nav-engine-status"
-            :class="[`state-${props.engineStatus.state}`, { active: active === 'engine' }]"
-            type="button" :title="`${props.engineStatusLabel}：${props.engineStatus.message}`"
-            @click="selectSection('engine')">
+            :class="[`state-${props.engineStatus.state}`, { active: active === 'engine' }]" type="button"
+            :title="`${props.engineStatusLabel}：${props.engineStatus.message}`" @click="selectSection('engine')">
             <span class="nav-engine-name">处理引擎</span>
             <span class="nav-engine-state">
               <span class="nav-engine-dot" aria-hidden="true"></span>
@@ -187,14 +175,8 @@ watch(
           </span>
         </button>
         <nav v-show="executionOpen" class="nav-list">
-          <button
-            v-for="item in executionItems"
-            :key="item.key"
-            class="nav-item"
-            :class="{ active: item.key === active }"
-            type="button"
-            @click="selectSection(item.key)"
-          >
+          <button v-for="item in executionItems" :key="item.key" class="nav-item"
+            :class="{ active: item.key === active }" type="button" @click="selectSection(item.key)">
             <span>{{ item.label }}</span>
           </button>
         </nav>
@@ -208,14 +190,8 @@ watch(
           </span>
         </button>
         <nav v-show="utilityOpen" class="nav-list nav-list-compact">
-          <button
-            v-for="item in utilityItems"
-            :key="item.key"
-            class="nav-item"
-            :class="{ active: item.key === active }"
-            type="button"
-            @click="selectSection(item.key)"
-          >
+          <button v-for="item in utilityItems" :key="item.key" class="nav-item" :class="{ active: item.key === active }"
+            type="button" @click="selectSection(item.key)">
             <span>{{ item.label }}</span>
           </button>
         </nav>

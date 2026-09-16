@@ -1,5 +1,7 @@
+#[cfg(not(target_os = "android"))]
 use std::{env, path::Path, process::ExitCode};
 
+#[cfg(not(target_os = "android"))]
 fn main() -> ExitCode {
     match run() {
         Ok(()) => ExitCode::SUCCESS,
@@ -10,6 +12,7 @@ fn main() -> ExitCode {
     }
 }
 
+#[cfg(not(target_os = "android"))]
 fn run() -> Result<(), String> {
     let mut arguments = env::args_os().skip(1);
     let model_dir = arguments
@@ -21,4 +24,10 @@ fn run() -> Result<(), String> {
     epub_tool_core::verify_ocr_model_dir(Path::new(&model_dir))
         .map(|_| ())
         .map_err(|error| error.to_string())
+}
+
+#[cfg(target_os = "android")]
+fn main() {
+    eprintln!("Android 不支持 OCR 模型校验");
+    std::process::exit(1);
 }

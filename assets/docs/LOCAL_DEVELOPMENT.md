@@ -39,6 +39,14 @@ sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
 
 其他发行版按 Tauri 2 对应平台前置依赖安装。
 
+### Android
+
+安装 JDK 17、Android SDK、NDK 和 Rustup。CI 使用 Android platform 36、build-tools 35.0.0、NDK 29.0.14206865。设置 `JAVA_HOME`、`ANDROID_HOME` 与 `NDK_HOME` 指向对应安装目录。
+
+```bash
+rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android i686-linux-android
+```
+
 ## 安装依赖
 
 ```bash
@@ -91,7 +99,7 @@ npm run build
 npm run build:verify-ocr-model
 ```
 
-`src-tauri/tests/core_regression.rs` 使用运行时生成的稳定 EPUB fixture 覆盖输出后缀、跳过行为、加密/解密往返、简繁转换和任务事件/结果。
+独立 `epub_tool_core` 仓库的 `tests/core_regression.rs` 使用运行时生成的稳定 EPUB fixture 覆盖输出后缀、跳过行为、加密/解密往返、简繁转换和任务事件/结果。
 
 ## 桌面构建
 
@@ -111,3 +119,21 @@ cargo --version
 ```
 
 使用 Rustup 时重新加载其环境，或重新打开终端/IDE。桌面打包失败时需确认对应平台的 Tauri 系统依赖已安装；宿主测试不能代替目标系统上的启动和任务回归。
+
+## Android 开发与验证
+
+所有命令在应用仓库根目录运行，不需要原 Android 仓库。
+
+```bash
+npm run tauri:android:init
+npm run tauri:android:dev
+# 指定设备时使用设备名；dev 没有 --target 参数
+npm run tauri:android:dev -- "Pixel 8" --no-watch
+npm run tauri:android:build -- aarch64 --split-per-abi --apk --ci
+npm run build:mobile-assets
+cargo tree --locked --manifest-path src-tauri/Cargo.toml --target aarch64-linux-android -e features
+```
+
+Android overlay 使用移动前端构建，不执行桌面 OCR 校验。依赖树不得包含 `ort` 或字体依赖。真机验证文件选择/外部打开、批量处理、封面替换、简繁转换、取消导出和成功导出；确认字体、目录扫描与路径打开入口不可用。
+
+macOS 直接运行 Cargo 测试或 Clippy 时，先运行 `npm run build:verify-ocr-model` 准备静态库，再设置 `ORT_LIB_PATH="$PWD/src-tauri/.desktop-runtime/onnxruntime-c-1.24.3/macos-static"`。
