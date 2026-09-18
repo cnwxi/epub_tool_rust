@@ -13,7 +13,16 @@
 
 一个面向 EPUB 批量处理的桌面与 Android 工具，采用 `Tauri 2 + Vue 3 + TypeScript + Rust`。桌面与 Android 共用同一套应用代码和 Rust 任务核心。开发、测试、构建和发布使用 Rust/Node 工具链。文件解密/加密功能处理的是 EPUB 内文件名与资源引用混淆，不提供 [DRM 内容解密](https://github.com/Satsuoni/DeDRM_tools)。
 
-![Epub Tool 桌面端界面预览](./assets/img/epub_tool_newui.png)
+<table>
+  <tr>
+    <td align="center" valign="middle" width="76%">
+      <img src="./assets/img/desktop.png" alt="Epub Tool 桌面端界面预览" width="100%">
+    </td>
+    <td align="center" valign="middle" width="24%">
+      <img src="./assets/img/mobile.png" alt="Epub Tool 安卓端界面预览" width="100%">
+    </td>
+  </tr>
+</table>
 
 ## 相关仓库
 
