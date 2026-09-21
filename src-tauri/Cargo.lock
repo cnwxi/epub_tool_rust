@@ -993,8 +993,8 @@ dependencies = [
 
 [[package]]
 name = "epub_tool_core"
-version = "26.8.25"
-source = "git+https://github.com/cnwxi/epub_tool_core?tag=v26.8.25#a27052b3faa89c8cff4913eb74fc6274ab93b5ba"
+version = "26.9.21"
+source = "git+https://github.com/cnwxi/epub_tool_core?tag=v26.9.21#d3f8bfcb3d23776877912fea0b9718d3ab51ab39"
 dependencies = [
  "blitz-dom",
  "blitz-html",
@@ -1023,7 +1023,7 @@ dependencies = [
 
 [[package]]
 name = "epub_tool_newui"
-version = "26.9.16"
+version = "26.9.21"
 dependencies = [
  "epub_tool_core",
  "pbjson",
