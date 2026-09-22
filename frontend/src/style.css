@@ -873,6 +873,7 @@ button:focus:not(:focus-visible) {
 .update-toast {
   display: flex;
   justify-content: space-between;
+  flex-wrap: nowrap;
   gap: 18px;
   align-items: center;
   padding: 18px 20px;
@@ -890,6 +891,8 @@ button:focus:not(:focus-visible) {
 .update-toast-copy {
   display: grid;
   gap: 4px;
+  min-width: 0;
+  flex: 1 1 12rem;
 }
 
 .update-toast-copy strong {
@@ -905,7 +908,16 @@ button:focus:not(:focus-visible) {
   display: flex;
   gap: var(--layout-gap-2);
   align-items: center;
+  flex: 0 0 auto;
   flex-wrap: wrap;
+  max-width: 100%;
+}
+
+.update-toast-actions .primary-btn,
+.update-toast-actions .ghost-btn {
+  flex: 0 0 auto;
+  min-height: 40px;
+  white-space: nowrap;
 }
 
 .workspace-header,
@@ -1038,20 +1050,20 @@ button:focus:not(:focus-visible) {
 .primary-btn,
 .secondary-btn,
 .ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
   border: 0;
   border-radius: 999px;
+  padding: 10px 16px;
+  font-size: 14px;
+  white-space: nowrap;
   cursor: pointer;
   transition:
     transform 160ms ease,
     box-shadow 160ms ease,
     background 160ms ease;
-}
-
-.primary-btn,
-.secondary-btn,
-.ghost-btn {
-  padding: 10px 16px;
-  font-size: 14px;
 }
 
 .primary-btn {
@@ -3275,6 +3287,11 @@ button:focus:not(:focus-visible) {
     min-height: 0;
     overflow: visible;
     padding: 18px;
+  }
+
+  .update-toast-actions .primary-btn,
+  .update-toast-actions .ghost-btn {
+    min-height: 44px;
   }
 
   .panel-head {
