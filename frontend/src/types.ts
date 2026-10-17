@@ -58,7 +58,7 @@ type FontScanResult = Required<Omit<FontScanResultJson, "results">> & {
   results: FontTargetResult[];
 };
 
-type FileIssue = Required<FileIssueJson>;
+export type FileIssue = Required<FileIssueJson>;
 type TaskSummary = Required<TaskSummaryJson>;
 
 export type TaskResult = Omit<Required<TaskResultJson>, "errors" | "skipped" | "summary"> & {

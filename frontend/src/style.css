@@ -1,5 +1,18 @@
 :root {
-  font-family: "IBM Plex Sans", "Noto Sans SC", "PingFang SC", sans-serif;
+  /* 仓库不打包任何字体文件，这里只引用各平台自带的 UI 字体，避免声明一个永远不会加载的远程字体 */
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI Variable Text",
+    "Segoe UI",
+    "Noto Sans SC",
+    "Source Han Sans SC",
+    "PingFang SC",
+    "Microsoft YaHei UI",
+    "Microsoft YaHei",
+    Roboto,
+    "Helvetica Neue",
+    sans-serif;
   color: #14213d;
   background: transparent;
   line-height: 1.5;
@@ -154,6 +167,17 @@ button:focus:not(:focus-visible) {
   outline: none;
 }
 
+/* 键盘用户需要一致的焦点环，玻璃背景上单靠描边不够明显 */
+:where(button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent-gold-700) 70%, white 30%);
+  outline-offset: 2px;
+}
+
+.side-nav :where(button, [tabindex]):focus-visible {
+  outline-color: rgba(242, 191, 94, 0.82);
+  outline-offset: 2px;
+}
+
 #app {
   min-height: 100vh;
   height: 100vh;
@@ -205,6 +229,46 @@ button:focus:not(:focus-visible) {
 .app-shell.platform-linux .ghost-btn {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+}
+
+/*
+ * 平台适配
+ *
+ * macOS：Rust 侧已启用 NSVisualEffect HudWindow，侧栏玻璃直接叠在原生 vibrancy 上。
+ * Windows：Rust 侧已启用 Mica（失败回退 Blur），系统会提供背景材质，
+ *        这里降低卡片投影，避免 Mica 与卡片阴影叠加后发灰。
+ * Linux：无原生合成器模糊，已在上面的 .platform-linux 规则里回退为不透明梯度。
+ * Android / 触屏：由 @media (pointer: coarse) 统一接管，见文件末尾。
+ */
+
+/* Mica / Vibrancy 已经提供了背景层次，卡片阴影可以更轻，避免材质互相打架 */
+.app-shell.platform-windows .panel,
+.app-shell.platform-windows .dropzone,
+.app-shell.platform-windows .settings-block,
+.app-shell.platform-windows .settings-update-card,
+.app-shell.platform-windows .settings-log-card,
+.app-shell.platform-windows .settings-preference-card,
+.app-shell.platform-windows .overview-group,
+.app-shell.platform-windows .about-hero,
+.app-shell.platform-windows .about-summary-card,
+.app-shell.platform-windows .about-card,
+.app-shell.platform-windows .about-path-card {
+  box-shadow: var(--glass-soft-shadow);
+}
+
+/* 侧栏在中等宽度下先收窄，把空间让给工作区，而不是等到 900px 直接切顶部栏 */
+@media (min-width: 901px) and (max-width: 1180px) {
+  .app-shell {
+    grid-template-columns: clamp(196px, 20vw, 236px) minmax(0, 1fr);
+  }
+
+  .side-nav {
+    padding: 16px 12px;
+  }
+
+  .nav-item {
+    padding: 9px 11px;
+  }
 }
 
 .side-nav-frame {
@@ -935,6 +999,18 @@ button:focus:not(:focus-visible) {
   animation: workspace-block-enter 320ms ease-out both;
 }
 
+@keyframes workspace-block-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @keyframes rise-in {
   from {
     opacity: 0;
@@ -1058,12 +1134,29 @@ button:focus:not(:focus-visible) {
   border-radius: 999px;
   padding: 10px 16px;
   font-size: 14px;
+  font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
+  user-select: none;
   transition:
     transform 160ms ease,
     box-shadow 160ms ease,
-    background 160ms ease;
+    background 160ms ease,
+    opacity 160ms ease;
+}
+
+/* 按下时给出即时反馈，避免只有 hover 位移造成的“点不到”的错觉 */
+.primary-btn:active,
+.secondary-btn:active,
+.ghost-btn:active {
+  transform: translateY(0) scale(0.985);
+  transition-duration: 80ms;
+}
+
+.primary-btn:focus-visible,
+.secondary-btn:focus-visible,
+.ghost-btn:focus-visible {
+  outline-offset: 3px;
 }
 
 .primary-btn {
@@ -1768,6 +1861,15 @@ button:focus:not(:focus-visible) {
   box-shadow:
     0 14px 24px rgba(20, 33, 61, 0.1),
     0 1px 0 rgba(255, 255, 255, 0.26) inset;
+}
+
+.overview-task-card:active {
+  transform: translateY(0) scale(0.995);
+}
+
+.overview-task-card strong {
+  font-size: 15px;
+  line-height: 1.4;
 }
 
 .overview-task-card:focus-visible {
@@ -3259,14 +3361,25 @@ button:focus:not(:focus-visible) {
     /* Shared by the fixed header, dropdown and content reservation. Android
        WebViews may report zero even when drawing behind the status bar. */
     --mobile-safe-top: max(env(safe-area-inset-top, 0px), 28px);
+    --mobile-safe-left: env(safe-area-inset-left, 0px);
+    --mobile-safe-right: env(safe-area-inset-right, 0px);
     --mobile-header-height: calc(64px + var(--mobile-safe-top));
     --mobile-nav-background: var(--brand-navy-900);
     grid-template-columns: 1fr;
     height: auto;
     min-height: 100dvh;
     overflow: visible;
+    /* 横屏刘海机型在左右两侧也有安全区，这里一并留出，避免正文贴边 */
     padding-top: var(--mobile-header-height);
+    padding-right: var(--mobile-safe-right);
     padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: var(--mobile-safe-left);
+  }
+
+  /* 固定头部同样要跟随左右安全区，否则横屏时会压到圆角/刘海 */
+  .side-nav-frame {
+    padding-right: var(--mobile-safe-right);
+    padding-left: var(--mobile-safe-left);
   }
 
   body {
@@ -3380,4 +3493,137 @@ button:focus:not(:focus-visible) {
     grid-template-columns: 1fr;
   }
 
+}
+
+/*
+ * 触屏 / 粗指针适配
+ *
+ * 不依赖具体平台或视口宽度：平板、触屏笔记本和横屏手机都会命中这一组规则。
+ * 桌面端鼠标指针不受影响。
+ */
+@media (pointer: coarse) {
+  :root {
+    --touch-target-min: 44px;
+  }
+
+  .primary-btn,
+  .secondary-btn,
+  .ghost-btn,
+  .nav-item,
+  .nav-group-toggle,
+  .settings-action-btn,
+  .update-check-btn,
+  .font-select-trigger,
+  .file-select {
+    min-height: var(--touch-target-min);
+  }
+
+  .toggle-option {
+    min-height: var(--touch-target-min);
+  }
+
+  .font-select-option {
+    min-height: 44px;
+  }
+
+  /* 触屏没有 hover 语义，取消依赖 hover 的位移和阴影变化，改为按下反馈 */
+  .primary-btn:hover,
+  .secondary-btn:hover,
+  .ghost-btn:hover,
+  .font-select-trigger:hover,
+  .settings-interactive-card:hover,
+  .overview-task-card:hover {
+    transform: none;
+  }
+
+  .primary-btn:active,
+  .secondary-btn:active,
+  .ghost-btn:active,
+  .font-select-option:active {
+    transform: scale(0.985);
+  }
+
+  /* 细粒度调节（质量、置信度）在触屏上需要更大的可拖动区域 */
+  .font-slider-control {
+    height: 48px;
+  }
+
+  .font-confidence-slider {
+    height: 48px;
+  }
+
+  .font-confidence-slider::-webkit-slider-thumb,
+  .font-confidence-slider::-moz-range-thumb {
+    width: 26px;
+    height: 26px;
+  }
+}
+
+/* 窄屏触屏设备优先保证点击区域，标记与说明文字同步放大一号 */
+@media (pointer: coarse) and (max-width: 900px) {
+  .log-event {
+    font-size: 13px;
+    letter-spacing: 0.04em;
+  }
+
+  .font-setting-field > span {
+    font-size: 14px;
+  }
+
+  .eyebrow {
+    font-size: 13px;
+  }
+}
+
+/* 尊重系统的减少动态效果设置 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .brand-block-easter-active::after,
+  .brand-easter-stage,
+  .brand-easter-glow,
+  .brand-easter-caption,
+  .brand-easter-author,
+  .nav-engine-status.state-starting .nav-engine-dot {
+    animation: none !important;
+  }
+}
+
+/* 不支持 backdrop-filter 的环境（旧 WebView / 禁用合成的 Linux）回退为不透明背景 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .side-nav {
+    background: linear-gradient(180deg, #22344b 0%, #2d435e 100%);
+  }
+
+  .workspace-shell {
+    background: linear-gradient(180deg, #f6f1e8 0%, #ede6d8 100%);
+  }
+
+  .panel,
+  .dropzone,
+  .settings-block,
+  .settings-update-card,
+  .settings-log-card,
+  .settings-preference-card,
+  .overview-group,
+  .overview-task-card,
+  .about-hero,
+  .about-summary-card,
+  .about-card,
+  .about-path-card,
+  .ghost-btn,
+  .glass-soft,
+  .glass-medium,
+  .glass-strong {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: #fdfaf5;
+  }
 }

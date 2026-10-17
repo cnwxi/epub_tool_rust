@@ -6,7 +6,10 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 import DropZone from "./components/DropZone.vue";
+import SettingSlider from "./components/SettingSlider.vue";
 import SideNav from "./components/SideNav.vue";
+import TaskLogPanel from "./components/TaskLogPanel.vue";
+import TaskResultPanel from "./components/TaskResultPanel.vue";
 import { usePersistentState } from "./composables/usePersistentState";
 import { isMobileFrontendMode, useTaskBridge } from "./composables/useTaskBridge";
 import { normalizeTaskResult } from "./types";
@@ -535,20 +538,16 @@ const formattedMinOcrConfidence = computed(() =>
     normalizeMinOcrConfidence(fontDecryptSettings.value.minOcrConfidence),
   ),
 );
-const minOcrConfidenceSliderStyle = computed(() => {
+const minOcrConfidencePercent = computed(() => {
   const normalized = normalizeMinOcrConfidence(fontDecryptSettings.value.minOcrConfidence);
-  const percent =
+  return (
     ((normalized - FRONTEND_MIN_OCR_CONFIDENCE) /
       (FRONTEND_MAX_OCR_CONFIDENCE - FRONTEND_MIN_OCR_CONFIDENCE)) *
-    100;
-
-  return {
-    "--ocr-confidence-percent": `${percent}%`,
-  };
+    100
+  );
 });
-const qualitySliderStyle = (value: number) => ({
-  "--ocr-confidence-percent": `${((normalizeImageQuality(value, 82) - 1) / 99) * 100}%`,
-});
+const qualitySliderPercent = (value: number) =>
+  ((normalizeImageQuality(value, 82) - 1) / 99) * 100;
 const taskHistory = usePersistentState<TaskHistoryEntry[]>(
   "epub-tool.task-history",
   [],
@@ -3001,30 +3000,12 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                       </button>
 
                       <div v-if="activeTask === 'image_compress'" class="font-advanced-options glass-soft">
-                        <label class="font-setting-field font-slider-field">
-                          <span class="font-slider-head"><span>JPEG 质量</span><strong>{{ newTaskSettings.jpegQuality
-                              }}</strong></span>
-                          <span class="font-slider-control" :style="qualitySliderStyle(newTaskSettings.jpegQuality)">
-                            <span class="font-slider-track" aria-hidden="true">
-                              <span class="font-slider-fill"></span>
-                            </span>
-                            <input v-model.number="newTaskSettings.jpegQuality" aria-label="JPEG 质量"
-                              :aria-valuetext="String(newTaskSettings.jpegQuality)" min="1" max="100"
-                              class="font-confidence-slider" type="range" />
-                          </span>
-                        </label>
-                        <label class="font-setting-field font-slider-field">
-                          <span class="font-slider-head"><span>WebP 质量</span><strong>{{ newTaskSettings.webpQuality
-                              }}</strong></span>
-                          <span class="font-slider-control" :style="qualitySliderStyle(newTaskSettings.webpQuality)">
-                            <span class="font-slider-track" aria-hidden="true">
-                              <span class="font-slider-fill"></span>
-                            </span>
-                            <input v-model.number="newTaskSettings.webpQuality" aria-label="WebP 质量"
-                              :aria-valuetext="String(newTaskSettings.webpQuality)" min="1" max="100"
-                              class="font-confidence-slider" type="range" />
-                          </span>
-                        </label>
+                        <SettingSlider label="JPEG 质量" v-model="newTaskSettings.jpegQuality"
+                          :display-value="String(newTaskSettings.jpegQuality)"
+                          :fill-percent="qualitySliderPercent(newTaskSettings.jpegQuality)" />
+                        <SettingSlider label="WebP 质量" v-model="newTaskSettings.webpQuality"
+                          :display-value="String(newTaskSettings.webpQuality)"
+                          :fill-percent="qualitySliderPercent(newTaskSettings.webpQuality)" />
                         <label class="font-option toggle-option image-toggle-option">
                           <span>将无透明通道 PNG 尝试转换为 JPEG</span>
                           <span class="toggle-switch">
@@ -3043,19 +3024,9 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                       </div>
 
                       <div v-else-if="activeTask === 'webp_to_img'" class="font-advanced-options glass-soft">
-                        <label class="font-setting-field font-slider-field">
-                          <span class="font-slider-head"><span>JPEG 质量</span><strong>{{
-                            newTaskSettings.webpToImageQuality }}</strong></span>
-                          <span class="font-slider-control"
-                            :style="qualitySliderStyle(newTaskSettings.webpToImageQuality)">
-                            <span class="font-slider-track" aria-hidden="true">
-                              <span class="font-slider-fill"></span>
-                            </span>
-                            <input v-model.number="newTaskSettings.webpToImageQuality" aria-label="JPEG 质量"
-                              :aria-valuetext="String(newTaskSettings.webpToImageQuality)" min="1" max="100"
-                              class="font-confidence-slider" type="range" />
-                          </span>
-                        </label>
+                        <SettingSlider label="JPEG 质量" v-model="newTaskSettings.webpToImageQuality"
+                          :display-value="String(newTaskSettings.webpToImageQuality)"
+                          :fill-percent="qualitySliderPercent(newTaskSettings.webpToImageQuality)" />
                         <label class="font-option toggle-option image-toggle-option">
                           <span>透明 PNG 降色到 256 色（减小体积）</span>
                           <span class="toggle-switch">
@@ -3067,19 +3038,9 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                       </div>
 
                       <div v-else-if="activeTask === 'image_to_webp'" class="font-advanced-options glass-soft">
-                        <label class="font-setting-field font-slider-field">
-                          <span class="font-slider-head"><span>WebP 质量</span><strong>{{ newTaskSettings.imageWebpQuality
-                              }}</strong></span>
-                          <span class="font-slider-control"
-                            :style="qualitySliderStyle(newTaskSettings.imageWebpQuality)">
-                            <span class="font-slider-track" aria-hidden="true">
-                              <span class="font-slider-fill"></span>
-                            </span>
-                            <input v-model.number="newTaskSettings.imageWebpQuality" aria-label="WebP 质量"
-                              :aria-valuetext="String(newTaskSettings.imageWebpQuality)" min="1" max="100"
-                              class="font-confidence-slider" type="range" />
-                          </span>
-                        </label>
+                        <SettingSlider label="WebP 质量" v-model="newTaskSettings.imageWebpQuality"
+                          :display-value="String(newTaskSettings.imageWebpQuality)"
+                          :fill-percent="qualitySliderPercent(newTaskSettings.imageWebpQuality)" />
                         <p class="muted">兼容性提示：EPUB 2 与旧版阅读器可能无法显示 WebP。</p>
                       </div>
 
@@ -3187,22 +3148,10 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                             </div>
                           </div>
                         </div>
-                        <label class="font-setting-field font-slider-field">
-                          <span class="font-slider-head">
-                            <span>OCR置信度阈值</span>
-                            <strong>{{ formattedMinOcrConfidence }}</strong>
-                          </span>
-                          <span class="font-slider-control" :style="minOcrConfidenceSliderStyle">
-                            <span class="font-slider-track" aria-hidden="true">
-                              <span class="font-slider-fill"></span>
-                            </span>
-                            <input v-model.number="fontDecryptSettings.minOcrConfidence" aria-label="OCR置信度阈值"
-                              :aria-valuetext="formattedMinOcrConfidence" :max="FRONTEND_MAX_OCR_CONFIDENCE"
-                              :min="FRONTEND_MIN_OCR_CONFIDENCE" :step="FRONTEND_OCR_CONFIDENCE_STEP"
-                              class="font-confidence-slider" type="range"
-                              @change="normalizeFontDecryptSettingsInPlace" />
-                          </span>
-                        </label>
+                        <SettingSlider label="OCR置信度阈值" v-model="fontDecryptSettings.minOcrConfidence"
+                          :display-value="formattedMinOcrConfidence" :fill-percent="minOcrConfidencePercent"
+                          :min="FRONTEND_MIN_OCR_CONFIDENCE" :max="FRONTEND_MAX_OCR_CONFIDENCE"
+                          :step="FRONTEND_OCR_CONFIDENCE_STEP" @change="normalizeFontDecryptSettingsInPlace" />
                       </div>
                     </div>
                     <div class="font-grid">
@@ -3265,117 +3214,12 @@ activeSection.value = normalizeSectionKey(activeSection.value);
                     </div>
                   </article>
 
-                  <article v-else-if="card.key === 'task-log'"
-                    class="panel panel-console glass-medium content-animated-block">
-                    <div class="panel-head">
-                      <div>
-                        <p class="eyebrow">过程</p>
-                        <h3>处理日志</h3>
-                      </div>
-                      <div class="panel-actions">
-                        <button v-if="platformCapabilities.supportsOpenPath" class="ghost-btn task-action-btn"
-                          type="button" @click="openLogFile">
-                          打开处理日志
-                        </button>
-                        <button class="ghost-btn task-action-btn" type="button" @click="clearLogs">
-                          清空面板
-                        </button>
-                      </div>
-                    </div>
-                    <div class="log-list">
-                      <div v-if="logs.length === 0" class="log-empty">尚未执行任务。</div>
-                      <div v-for="(log, index) in [...logs].reverse()" :key="`${log.event}-${index}`"
-                        class="log-row glass-soft" :class="log.level ?? log.status">
-                        <span class="log-event">{{ log.event }}</span>
-                        <span class="log-message">{{ log.message }}</span>
-                      </div>
-                    </div>
-                  </article>
+                  <TaskLogPanel v-else-if="card.key === 'task-log'" :logs="logs"
+                    :can-open-log="platformCapabilities.supportsOpenPath" @open-log="openLogFile"
+                    @clear-log="clearLogs" />
 
-                  <article v-else-if="card.key === 'task-result'"
-                    class="panel panel-result glass-medium content-animated-block">
-                    <div class="panel-head">
-                      <div>
-                        <p class="eyebrow">结果</p>
-                        <h3>最近一次执行摘要</h3>
-                      </div>
-                    </div>
-                    <div v-if="!result" class="result-empty">还没有可展示的执行结果。</div>
-                    <div v-else class="result-block">
-                      <div class="result-metrics">
-                        <div class="result-metric-card total">
-                          <strong class="content-animated-value">{{ result?.summary?.total ?? 0 }}</strong>
-                          <span>总文件</span>
-                        </div>
-                        <div class="result-metric-card success">
-                          <strong class="content-animated-value">{{ result?.summary?.success ?? 0 }}</strong>
-                          <span>成功</span>
-                        </div>
-                        <div class="result-metric-card error">
-                          <strong class="content-animated-value">{{ result?.summary?.failed ?? 0 }}</strong>
-                          <span>失败</span>
-                        </div>
-                        <div class="result-metric-card skip">
-                          <strong class="content-animated-value">{{ result?.summary?.skipped ?? 0 }}</strong>
-                          <span>跳过</span>
-                        </div>
-                      </div>
-
-                      <div v-if="(result?.outputs?.length ?? 0) > 0" class="result-detail-block">
-                        <div class="result-detail-head">
-                          <strong>成功</strong>
-                          <span class="content-animated-value">{{ result?.outputs?.length ?? 0 }} 项</span>
-                        </div>
-                        <div class="result-output-list">
-                          <button v-for="output in result?.outputs ?? []" :key="output"
-                            class="result-output-row success glass-soft" type="button"
-                            @click="openOutputFolder(output)">
-                            <div class="result-row-head">
-                              <strong>{{ output.split(/[\\/]/).pop() ?? output }}</strong>
-                              <span class="result-status-tag success">{{ isMobile ? "导出" : "成功" }}</span>
-                            </div>
-                            <span>{{ output }}</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      <div v-if="(result?.errors?.length ?? 0) > 0" class="result-detail-block">
-                        <div class="result-detail-head">
-                          <strong>失败</strong>
-                          <span class="content-animated-value">{{ result?.errors?.length ?? 0 }} 项</span>
-                        </div>
-                        <div class="result-detail-list">
-                          <div v-for="item in result?.errors ?? []" :key="`${item.inputFile}-${item.message}`"
-                            class="result-detail-row error glass-soft">
-                            <div class="result-row-head">
-                              <strong>{{ item.inputFile.split(/[\\/]/).pop() ?? item.inputFile }}</strong>
-                              <span class="result-status-tag error">失败</span>
-                            </div>
-                            <p>{{ item.message }}</p>
-                            <span>{{ item.inputFile }}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div v-if="(result?.skipped?.length ?? 0) > 0" class="result-detail-block">
-                        <div class="result-detail-head">
-                          <strong>跳过</strong>
-                          <span class="content-animated-value">{{ result?.skipped?.length ?? 0 }} 项</span>
-                        </div>
-                        <div class="result-detail-list">
-                          <div v-for="item in result?.skipped ?? []" :key="`${item.inputFile}-${item.message}`"
-                            class="result-detail-row skip glass-soft">
-                            <div class="result-row-head">
-                              <strong>{{ item.inputFile.split(/[\\/]/).pop() ?? item.inputFile }}</strong>
-                              <span class="result-status-tag skip">跳过</span>
-                            </div>
-                            <p>{{ item.message }}</p>
-                            <span>{{ item.inputFile }}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </article>
+                  <TaskResultPanel v-else-if="card.key === 'task-result'" :result="result" :is-mobile="isMobile"
+                    @open-output="openOutputFolder" />
                 </template>
               </div>
             </section>
